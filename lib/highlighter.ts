@@ -1,7 +1,45 @@
+/**
+ * Represents a highlight span with start/end positions and CSS style.
+ */
 export interface Span {
   start: number;
   end: number;
   style: string;
+}
+
+/**
+ * Configuration for each highlight group.
+ */
+export interface HighlightGroupConfig {
+  name: string;
+  enabled: boolean;
+  description: string;
+}
+
+/**
+ * All highlight groups with their enabled status.
+ * Can be used to build a toggle UI for enabling/disabling highlight categories.
+ */
+export const HIGHLIGHT_GROUPS: HighlightGroupConfig[] = [
+  { name: 'dates', enabled: true, description: 'ISO dates, times, timezones, nginx dates, plain dates' },
+  { name: 'keywords', enabled: true, description: 'null, true, false, ERROR, WARN, INFO, DEBUG, HTTP methods' },
+  { name: 'urls', enabled: true, description: 'http/https URLs with protocol, host, path, query params' },
+  { name: 'numbers', enabled: true, description: 'Integers and decimals with word boundaries' },
+  { name: 'ipv4', enabled: true, description: 'IPv4 addresses with valid octet checking (0-255)' },
+  { name: 'quotes', enabled: true, description: 'Double-quoted strings' },
+  { name: 'paths', enabled: true, description: 'Unix paths (/, ./, ~/)' },
+  { name: 'uuids', enabled: true, description: 'UUID v4 format with proper validation' },
+  { name: 'keyValue', enabled: true, description: 'key=value and key:value pairs' },
+  { name: 'statusCodes', enabled: true, description: 'HTTP status codes (200, 404, 500, etc.)' },
+  { name: 'json', enabled: true, description: 'JSON object keys' },
+];
+
+/**
+ * Result statistics from processing log input.
+ */
+export interface HighlightStats {
+  linesProcessed: number;
+  processingTimeMs: number;
 }
 
 function isOverlapping(spans: Span[], start: number, end: number): boolean {
@@ -10,6 +48,7 @@ function isOverlapping(spans: Span[], start: number, end: number): boolean {
 
 function addSpan(spans: Span[], start: number, end: number, style: string) {
   if (start >= end) return;
+  console.log('[DEBUG addSpan] Adding span:', { start, end, style });
   spans.push({ start, end, style });
 }
 
@@ -20,11 +59,15 @@ function applySpans(text: string, spans: Span[]): string {
   const result: string[] = [];
   let lastEnd = 0;
 
+  console.log('[DEBUG applySpans] Sorted spans:', JSON.stringify(spans.slice(0, 10)));
+
   for (const span of spans) {
+    console.log('[DEBUG applySpans] Processing span:', span);
     if (span.start > lastEnd) {
       result.push(escapeHtml(text.slice(lastEnd, span.start)));
     }
     if (span.start >= lastEnd) {
+      console.log('[DEBUG applySpans] Adding span with style:', span.style);
       result.push(`<span style="${span.style}">${escapeHtml(text.slice(span.start, span.end))}</span>`);
       lastEnd = span.end;
     }
@@ -37,12 +80,23 @@ function applySpans(text: string, spans: Span[]): string {
   return result.join('');
 }
 
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_PATTERN, '');
+}
+
+function normalizeLineEndings(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
 const COLORS = {
@@ -57,6 +111,12 @@ const COLORS = {
   faint: 'opacity: 0.6',
 };
 
+const MAGENTA = COLORS.magenta;
+const CYAN = COLORS.cyan;
+const BLUE = COLORS.blue;
+const RED = COLORS.red;
+const Faint = COLORS.faint;
+
 function combineStyles(...styles: string[]): string {
   return styles.join('; ');
 }
@@ -64,15 +124,98 @@ function combineStyles(...styles: string[]): string {
 function highlightDates(line: string, existingSpans: Span[]): Span[] {
   const spans: Span[] = [...existingSpans];
   
-  const isoDatePattern = /\b(19\d{2}|20\d{2})([-\/])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])\b/g;
+  console.log('[DEBUG highlightDates] COLORS object:', COLORS);
+  console.log('[DEBUG highlightDates] COLORS.magenta directly:', 'color: #c51e8a');
+  
   let match;
+  const nginxDatePattern = /\[(\d{2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}:\d{2}:\d{2})\s*([+-]\d{4})?\]/g;
+  console.log('[DEBUG] Looking for nginx date in:', line);
+  while ((match = nginxDatePattern.exec(line)) !== null) {
+    console.log('[DEBUG] Found nginx date match at index', match.index);
+    console.log('[DEBUG] About to check isOverlapping and add spans');
+    if (isOverlapping(spans, match.index, match.index + match[0].length)) {
+      console.log('[DEBUG] Skipping due to overlap');
+      continue;
+    }
+    
+    console.log('[DEBUG] No overlap, processing match groups:', match.slice(1));
+    console.log('[DEBUG] Using hardcoded magenta: color: #c51e8a');
+    const day = match[1];
+    const month = match[2];
+    const year = match[3];
+    const time = match[4];
+    const tz = match[5];
+    
+    let pos = match.index;
+    console.log('[DEBUG] Adding day span:', { start: pos, end: pos + day.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + day.length, 'color: #c51e8a');
+    pos += day.length;
+    console.log('[DEBUG] Adding sep1 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding month span:', { start: pos, end: pos + month.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + month.length, 'color: #c51e8a');
+    pos += month.length;
+    console.log('[DEBUG] Adding sep2 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding year span:', { start: pos, end: pos + year.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + year.length, 'color: #c51e8a');
+    pos += year.length;
+    console.log('[DEBUG] Adding sep3 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding time span:', { start: pos, end: pos + time.length, style: 'color: #2aa1d3' });
+    addSpan(spans, pos, pos + time.length, 'color: #2aa1d3');
+    pos += time.length;
+    if (tz) {
+      console.log('[DEBUG] Adding tz span:', { start: pos, end: pos + tz.length, style: 'color: #dc4b4b' });
+      addSpan(spans, pos, pos + tz.length, 'color: #dc4b4b');
+    }
+  }
+
+  const isoDatePattern = /\b(19\d{2}|20\d{2})([-\/])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])\b/g;
+  console.log('[DEBUG] ISO pattern looking in:', line);
   while ((match = isoDatePattern.exec(line)) !== null) {
+    console.log('[DEBUG] ISO match:', match[0], 'at', match.index);
+    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
     const start = match.index;
-    addSpan(spans, start, start + 4, COLORS.magenta);
-    addSpan(spans, start + 4, start + 5, combineStyles(COLORS.magenta, COLORS.faint));
-    addSpan(spans, start + 5, start + 7, COLORS.magenta);
-    addSpan(spans, start + 7, start + 8, combineStyles(COLORS.magenta, COLORS.faint));
-    addSpan(spans, start + 8, start + 10, COLORS.magenta);
+    addSpan(spans, start, start + 4, 'color: #c51e8a');
+    addSpan(spans, start + 4, start + 5, 'color: #c51e8a; opacity: 0.6');
+    addSpan(spans, start + 5, start + 7, 'color: #c51e8a');
+    addSpan(spans, start + 7, start + 8, 'color: #c51e8a; opacity: 0.6');
+    addSpan(spans, start + 8, start + 10, 'color: #c51e8a');
+  }
+
+  const plainDatePattern = /(?:^|\s)([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})(?:\b|$)/g;
+  while ((match = plainDatePattern.exec(line)) !== null) {
+    console.log('[DEBUG] Plain date match:', match[0], 'at', match.index);
+    if (isOverlapping(spans, match.index, match.index + match[0].length)) {
+      console.log('[DEBUG] Plain date skipped due to overlap');
+      continue;
+    }
+    
+    console.log('[DEBUG] Plain date - no overlap, processing match');
+    const month = match[1];
+    const day = match[2];
+    const time = match[3];
+    
+    const startOffset = match[0].startsWith(' ') ? 1 : 0;
+    let pos = match.index + startOffset;
+    console.log('[DEBUG] Adding plain month span:', { start: pos, end: pos + month.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + month.length, 'color: #c51e8a');
+    pos += month.length;
+    console.log('[DEBUG] Adding plain sep1 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding plain day span:', { start: pos, end: pos + day.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + day.length, 'color: #c51e8a');
+    pos += day.length;
+    console.log('[DEBUG] Adding plain sep2 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding plain time span:', { start: pos, end: pos + time.length, style: 'color: #2aa1d3' });
+    addSpan(spans, pos, pos + time.length, 'color: #2aa1d3');
   }
 
   const timePattern = /\b([01]?\d|2[0-3]):([0-5]\d):([0-5]\d)([.,:](\d+))?(Z|[+-]\d{2}:?\d{2})?\b/g;
@@ -123,6 +266,37 @@ function highlightDates(line: string, existingSpans: Span[]): Span[] {
     addSpan(spans, start + month.length + 1, start + month.length + 1 + day.length, COLORS.magenta);
     addSpan(spans, start + month.length + 1 + day.length, start + month.length + 1 + day.length + 1, combineStyles(COLORS.magenta, COLORS.faint));
     addSpan(spans, start + month.length + 1 + day.length + 1, start + match[0].length, COLORS.magenta);
+  }
+
+  const plainDatePattern = /(?:^|\s)([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})(?:\b|$)/g;
+  while ((match = plainDatePattern.exec(line)) !== null) {
+    console.log('[DEBUG] Plain date match:', match[0], 'at', match.index);
+    if (isOverlapping(spans, match.index, match.index + match[0].length)) {
+      console.log('[DEBUG] Plain date skipped due to overlap');
+      continue;
+    }
+    
+    console.log('[DEBUG] Plain date - no overlap, processing match');
+    const month = match[1];
+    const day = match[2];
+    const time = match[3];
+    
+    const startOffset = match[0].startsWith(' ') ? 1 : 0;
+    let pos = match.index + startOffset;
+    console.log('[DEBUG] Adding plain month span:', { start: pos, end: pos + month.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + month.length, 'color: #c51e8a');
+    pos += month.length;
+    console.log('[DEBUG] Adding plain sep1 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding plain day span:', { start: pos, end: pos + day.length, style: 'color: #c51e8a' });
+    addSpan(spans, pos, pos + day.length, 'color: #c51e8a');
+    pos += day.length;
+    console.log('[DEBUG] Adding plain sep2 span:', { start: pos, end: pos + 1, style: 'color: #c51e8a; opacity: 0.6' });
+    addSpan(spans, pos, pos + 1, 'color: #c51e8a; opacity: 0.6');
+    pos += 1;
+    console.log('[DEBUG] Adding plain time span:', { start: pos, end: pos + time.length, style: 'color: #2aa1d3' });
+    addSpan(spans, pos, pos + time.length, 'color: #2aa1d3');
   }
 
   return spans;
@@ -467,23 +641,77 @@ function highlightJSON(line: string, existingSpans: Span[]): Span[] {
   return spans;
 }
 
-export function highlightLog(input: string): string {
-  if (!input) return '';
+/**
+ * Highlights log input and returns both the HTML output and processing statistics.
+ * @param input - Raw log text to highlight
+ * @returns Object containing highlighted HTML string and processing stats
+ */
+export function highlightLogWithStats(input: string): { html: string; stats: HighlightStats } {
+  const startTime = performance.now();
   
-  const lines = input.split('\n');
+  if (!input) {
+    return { html: '', stats: { linesProcessed: 0, processingTimeMs: 0 } };
+  }
+  
+  let processed = stripAnsi(input);
+  processed = normalizeLineEndings(processed);
+  
+  const lines = processed.split('\n');
   const highlightedLines = lines.map(line => {
     let spans: Span[] = [];
     
     spans = highlightDates(line, spans);
     spans = highlightKeywords(line, spans);
     spans = highlightUrls(line, spans);
-    spans = highlightNumbers(line, spans);
     spans = highlightIPv4(line, spans);
+    spans = highlightUUIDs(line, spans);
+    spans = highlightStatusCodes(line, spans);
+    spans = highlightNumbers(line, spans);
     spans = highlightQuotes(line, spans);
     spans = highlightPaths(line, spans);
-    spans = highlightUUIDs(line, spans);
     spans = highlightKeyValue(line, spans);
+    spans = highlightJSON(line, spans);
+    
+    return applySpans(line, spans);
+  });
+  
+  const endTime = performance.now();
+  const processingTime = Math.round((endTime - startTime) * 100) / 100;
+  
+  return {
+    html: highlightedLines.join('\n'),
+    stats: {
+      linesProcessed: lines.length,
+      processingTimeMs: processingTime,
+    },
+  };
+}
+
+/**
+ * Highlights log text by wrapping recognized patterns in styled HTML spans.
+ * @param input - Raw log text to highlight
+ * @returns HTML string with styled spans for recognized patterns
+ */
+export function highlightLog(input: string): string {
+  if (!input) return '';
+  
+  let processed = stripAnsi(input);
+  processed = normalizeLineEndings(processed);
+  
+  const lines = processed.split('\n');
+  const highlightedLines = lines.map(line => {
+    let spans: Span[] = [];
+    
+    spans = highlightDates(line, spans);
+    spans = highlightKeywords(line, spans);
+    spans = highlightUrls(line, spans);
+    spans = highlightIPv4(line, spans);
+    spans = highlightUUIDs(line, spans);
     spans = highlightStatusCodes(line, spans);
+    spans = highlightNumbers(line, spans);
+    spans = highlightQuotes(line, spans);
+    spans = highlightPaths(line, spans);
+    spans = highlightKeyValue(line, spans);
     spans = highlightJSON(line, spans);
     
     return applySpans(line, spans);

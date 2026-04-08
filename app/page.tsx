@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { highlightLog } from '@/lib/highlighter';
+import { highlightLogWithStats } from '@/lib/highlighter';
 
 const SAMPLE_LOG = `2024-01-15 10:30:45.123 INFO Starting application server
 [2024-01-15] GET /api/users?id=123&active=true HTTP/1.1 200 OK
@@ -17,12 +17,14 @@ TRACE: Memory at 0x7f8c8c0c0c0c allocated for buffer`;
 export default function Home() {
   const [input, setInput] = useState(SAMPLE_LOG);
   const [output, setOutput] = useState('');
+  const [stats, setStats] = useState({ linesProcessed: 0, processingTimeMs: 0 });
   const [copied, setCopied] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const processInput = useCallback((text: string) => {
-    const result = highlightLog(text);
-    setOutput(result);
+    const result = highlightLogWithStats(text);
+    setOutput(result.html);
+    setStats(result.stats);
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -54,6 +56,11 @@ export default function Home() {
   const handleClear = () => {
     setInput('');
   };
+
+  const charCount = input.length;
+  const charCountDisplay = charCount >= 1000 
+    ? `${(charCount / 1000).toFixed(1)}k` 
+    : charCount.toString();
 
   return (
     <main className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-8">
@@ -91,7 +98,12 @@ export default function Home() {
               className="w-full h-80 bg-gray-800 text-gray-100 p-4 rounded-lg border border-gray-700 font-mono text-sm resize-none focus:outline-none focus:border-cyan-500"
               placeholder="Paste your log content here..."
               spellCheck={false}
+              aria-label="Log input textarea - paste your log content here"
             />
+            <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+              <span>{stats.linesProcessed.toLocaleString()} lines</span>
+              <span>{charCountDisplay} characters</span>
+            </div>
           </div>
 
           <div>
@@ -99,18 +111,23 @@ export default function Home() {
               <label className="text-sm font-medium text-gray-300">
                 Highlighted Output
               </label>
-              <button
-                onClick={handleCopyHTML}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
-                  copied
-                    ? 'bg-green-600 text-white'
-                    : 'bg-cyan-600 hover:bg-cyan-500 text-white'
-                }`}
-              >
-                {copied ? 'Copied!' : 'Copy HTML'}
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">{stats.processingTimeMs.toFixed(2)}ms</span>
+                <button
+                  onClick={handleCopyHTML}
+                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                    copied
+                      ? 'bg-green-600 text-white'
+                      : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                  }`}
+                >
+                  {copied ? 'Copied!' : 'Copy HTML'}
+                </button>
+              </div>
             </div>
             <div
+              role="region"
+              aria-label="Highlighted log output"
               className="w-full h-80 bg-gray-950 text-gray-100 p-4 rounded-lg border border-gray-700 font-mono text-sm overflow-auto whitespace-pre-wrap break-words"
               dangerouslySetInnerHTML={{ __html: output }}
             />
