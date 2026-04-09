@@ -1,13 +1,15 @@
-'use client';
+'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { highlightLogWithStats } from '@/lib/highlighter';
-import { validateInput, checkRateLimit, getInputStats, MAX_INPUT_BYTES } from '@/lib/rateLimiter';
-import { encodeShareUrl, decodeShareUrl, copyToClipboard, clearShareUrl } from '@/lib/sharing';
-import { exportAsHtml, exportAsText } from '@/lib/export';
-import { OutputErrorBoundary } from '@/components/ErrorBoundary';
-import { registerShortcuts } from '@/lib/keyboard';
-import { ShortcutsModal } from '@/components/ShortcutsModal';
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { highlightLogWithStats } from '@/lib/highlighter'
+import { validateInput, checkRateLimit, getInputStats, MAX_INPUT_BYTES } from '@/lib/rateLimiter'
+import { encodeShareUrl, decodeShareUrl, copyToClipboard, clearShareUrl } from '@/lib/sharing'
+import { exportAsHtml, exportAsText } from '@/lib/export'
+import { saveToHistory } from '@/lib/history'
+import { OutputErrorBoundary } from '@/components/ErrorBoundary'
+import { HistoryPanel } from '@/components/HistoryPanel'
+import { registerShortcuts } from '@/lib/keyboard'
+import { ShortcutsModal } from '@/components/ShortcutsModal'
 
 const SAMPLE_LOG = `2024-01-15 10:30:45.123 INFO Starting application server
 [2024-01-15] GET /api/users?id=123&active=true HTTP/1.1 200 OK
@@ -18,27 +20,29 @@ WARN: Config file not found at /etc/app/config.yml
 DELETE /api/users/456 status=pending 204 No Content
 Downloaded file from https://cdn.example.com/repo/release-v2.0.0.tar.gz?token=abc123
 localhost:3000 processing request from [::1]:54321
-TRACE: Memory at 0x7f8c8c0c0c0c allocated for buffer`;
+TRACE: Memory at 0x7f8c8c0c0c0c allocated for buffer`
 
 export default function Home() {
-  const [input, setInput] = useState(SAMPLE_LOG);
-  const [output, setOutput] = useState('');
-  const [stats, setStats] = useState({ linesProcessed: 0, processingTimeMs: 0 });
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [errorDetail, setErrorDetail] = useState<string | null>(null);
-  const [displayStats, setDisplayStats] = useState<{ lines: string; size: string; processingTime: string } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [input, setInput] = useState(SAMPLE_LOG)
+  const [output, setOutput] = useState('')
+  const [stats, setStats] = useState({ linesProcessed: 0, processingTimeMs: 0 })
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
+  const [displayStats, setDisplayStats] = useState<{ lines: string; size: string; processingTime: string } | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const skipInitialHistorySaveRef = useRef(true)
+  const skipNextInputProcessingRef = useRef(false)
 
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareCopyState, setShareCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
-  const [shareError, setShareError] = useState<string | null>(null);
-const [restoredFromUrl, setRestoredFromUrl] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const outputRef = useRef<HTMLDivElement>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareCopyState, setShareCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [restoredFromUrl, setRestoredFromUrl] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const outputRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') return
@@ -62,46 +66,55 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
     }
   }, [])
 
-  const processInput = useCallback((raw: string) => {
-    setError(null);
-    setErrorDetail(null);
+  const processInput = useCallback((raw: string, options?: { saveHistory?: boolean }) => {
+    setError(null)
+    setErrorDetail(null)
 
     if (raw.trim() === '') {
-      setOutput('');
-      setDisplayStats(null);
-      return;
+      setOutput('')
+      setDisplayStats(null)
+      return
     }
 
-    const validation = validateInput(raw);
+    const validation = validateInput(raw)
     if (!validation.ok) {
-      setError(validation.reason);
-      setErrorDetail(validation.detail);
-      setOutput('');
-      return;
+      setError(validation.reason)
+      setErrorDetail(validation.detail)
+      setOutput('')
+      return
     }
 
-    const rateCheck = checkRateLimit();
+    const rateCheck = checkRateLimit()
     if (!rateCheck.allowed) {
-      setError(rateCheck.reason);
-      setErrorDetail(`Please wait ${Math.ceil(rateCheck.retryAfterMs / 1000)}s before processing again.`);
-      return;
+      setError(rateCheck.reason)
+      setErrorDetail(`Please wait ${Math.ceil(rateCheck.retryAfterMs / 1000)}s before processing again.`)
+      return
     }
 
-    setIsProcessing(true);
+    setIsProcessing(true)
 
     try {
-      const result = highlightLogWithStats(raw);
-      setOutput(result.html);
-      setStats(result.stats);
-      setDisplayStats(getInputStats(raw, result.stats.processingTimeMs));
+      const result = highlightLogWithStats(raw)
+      setOutput(result.html)
+      setStats(result.stats)
+      setDisplayStats(getInputStats(raw, result.stats.processingTimeMs))
+
+      // Auto-save to history (fire and forget - do not block on result)
+      if (options?.saveHistory ?? true) {
+        if (skipInitialHistorySaveRef.current) {
+          skipInitialHistorySaveRef.current = false
+        } else {
+          saveToHistory(raw)
+        }
+      }
     } catch (err) {
-      setError('Processing error');
-      setErrorDetail('An unexpected error occurred. Please try with different input.');
-      console.error('Highlighter error:', err);
+      setError('Processing error')
+      setErrorDetail('An unexpected error occurred. Please try with different input.')
+      console.error('Highlighter error:', err)
     } finally {
-      setIsProcessing(false);
+      setIsProcessing(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     // Only run on client side
@@ -112,31 +125,53 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
 
     const result = decodeShareUrl(hash)
     if (result.ok) {
-      setInput(result.input)
-      processInput(result.input) // trigger highlighting immediately
+      if (result.input !== SAMPLE_LOG) {
+        skipNextInputProcessingRef.current = true
+        setInput(result.input)
+      }
+      processInput(result.input, { saveHistory: false })
       setRestoredFromUrl(true)
     }
-    // If decoding fails, silently ignore — don't show error on load
+    // If decoding fails, silently ignore - do not show error on load
     // The URL might just have an unrelated hash
-  }, []) // empty deps — run once on mount only
+  }, [processInput])
 
   useEffect(() => {
-    processInput(input);
-  }, [input, processInput]);
+    if (skipNextInputProcessingRef.current) {
+      skipNextInputProcessingRef.current = false
+      return
+    }
+
+    if (input.trim() === '') {
+      processInput('', { saveHistory: false })
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      processInput(input)
+    }, 300)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [input, processInput])
 
   const handleCopyHTML = async () => {
     try {
-      await navigator.clipboard.writeText(output);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(output)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy:', err);
+      console.error('Failed to copy:', err)
     }
-  };
+  }
 
   const handleClear = () => {
-    setInput('');
-  };
+    setInput('')
+    setShareUrl(null)
+    setShareCopyState('idle')
+    clearShareUrl()
+  }
 
   const handleShare = useCallback(async () => {
     setShareError(null)
@@ -160,7 +195,7 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
 
     // Reset copy state after 3 seconds
     setTimeout(() => setShareCopyState('idle'), 3000)
-  }, [input]);
+  }, [input])
 
   const handleExportHtml = useCallback(() => {
     setExportError(null)
@@ -178,6 +213,18 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
     const result = exportAsText(input)
     if (!result.ok) setExportError(result.reason)
   }, [input])
+
+  const handleRestoreFromHistory = useCallback((restoredInput: string) => {
+    if (restoredInput !== input) {
+      skipNextInputProcessingRef.current = true
+      setInput(restoredInput)
+    }
+    processInput(restoredInput, { saveHistory: false })
+    setShareUrl(null)
+    setShareCopyState('idle')
+    setShareError(null)
+    clearShareUrl()
+  }, [input, processInput])
 
   useEffect(() => {
     return registerShortcuts({
@@ -231,14 +278,12 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
     setShareUrl(null)
     setShareCopyState('idle')
     clearShareUrl()
-    setInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => processInput(value), 300);
-  }, [processInput]);
+    setInput(value)
+  }, [])
 
-  const byteSize = new Blob([input]).size;
-  const bytePercent = (byteSize / MAX_INPUT_BYTES) * 100;
-  const byteWarningClass = bytePercent > 95 ? 'text-red-400' : bytePercent > 80 ? 'text-yellow-400' : 'text-gray-500';
+  const byteSize = new Blob([input]).size
+  const bytePercent = (byteSize / MAX_INPUT_BYTES) * 100
+  const byteWarningClass = bytePercent > 95 ? 'text-red-400' : bytePercent > 80 ? 'text-yellow-400' : 'text-gray-500'
 
   return (
     <main className="min-h-screen bg-gray-900 text-gray-100 p-4 md:p-8">
@@ -247,6 +292,23 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
           <h1 className="text-3xl font-bold text-cyan-400 mb-2">Log Highlighter</h1>
           <p className="text-gray-400">A browser-based log file highlighter</p>
         </header>
+
+        <div
+          role="note"
+          style={{
+            padding: '10px 12px',
+            marginBottom: '12px',
+            background: '#0d1a0d',
+            border: '1px solid #1a3a1a',
+            borderRadius: '6px',
+            color: '#7fd07f',
+            fontSize: '12px',
+            lineHeight: 1.5,
+            fontFamily: 'monospace',
+          }}
+        >
+          Note: logs are stored locally in your browser only. History entries are never sent to any server.
+        </div>
 
         {error && (
           <div className="mb-4 p-4 bg-red-900/30 border border-red-600 rounded-lg">
@@ -268,7 +330,7 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
               marginBottom: '8px',
             }}
           >
-            ✓ Log restored from shared URL
+            Log restored from shared URL
             <button
               onClick={() => setRestoredFromUrl(false)}
               style={{ marginLeft: '12px', background: 'none', border: 'none', color: '#6fcf6f', cursor: 'pointer', fontSize: '11px' }}
@@ -320,7 +382,7 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
               id="input"
               ref={inputRef}
               value={input}
-              onChange={(e) => handleInputChange(e.target.value)}
+              onChange={e => handleInputChange(e.target.value)}
               className="w-full h-80 bg-gray-800 text-gray-100 p-4 rounded-lg border border-gray-700 font-mono text-sm resize-none focus:outline-none focus:border-cyan-500"
               placeholder="Paste your log content here..."
               spellCheck={false}
@@ -356,6 +418,23 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
                   {copied ? 'Copied!' : 'Copy HTML'}
                 </button>
                 <button
+                  onClick={() => setShowHistory(true)}
+                  aria-label="Open log history"
+                  title="Recent logs"
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: '1px solid #444',
+                    background: '#1e1e1e',
+                    color: '#e0e0e0',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  History
+                </button>
+                <button
                   onClick={handleShare}
                   disabled={!input || input.trim() === ''}
                   aria-label="Generate shareable URL for this log output"
@@ -365,13 +444,13 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
                     border: '1px solid #444',
                     background: '#1e1e1e',
                     color: '#e0e0e0',
-                    cursor: input?.trim() ? 'pointer' : 'not-allowed',
-                    opacity: input?.trim() ? 1 : 0.5,
+                    cursor: input.trim() ? 'pointer' : 'not-allowed',
+                    opacity: input.trim() ? 1 : 0.5,
                     fontSize: '13px',
                     fontFamily: 'monospace',
                   }}
                 >
-                  {shareCopyState === 'copied' ? '✓ URL Copied' : shareCopyState === 'error' ? '⚠ Copy Failed' : '🔗 Share'}
+                  {shareCopyState === 'copied' ? 'URL Copied' : shareCopyState === 'error' ? 'Copy Failed' : 'Share'}
                 </button>
                 <button
                   onClick={handleExportHtml}
@@ -383,13 +462,13 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
                     border: '1px solid #444',
                     background: '#1e1e1e',
                     color: '#e0e0e0',
-                    cursor: output?.trim() ? 'pointer' : 'not-allowed',
-                    opacity: output?.trim() ? 1 : 0.5,
+                    cursor: output.trim() ? 'pointer' : 'not-allowed',
+                    opacity: output.trim() ? 1 : 0.5,
                     fontSize: '13px',
                     fontFamily: 'monospace',
                   }}
                 >
-                  ↓ HTML
+                  HTML
                 </button>
                 <button
                   onClick={handleExportText}
@@ -401,13 +480,13 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
                     border: '1px solid #444',
                     background: '#1e1e1e',
                     color: '#e0e0e0',
-                    cursor: input?.trim() ? 'pointer' : 'not-allowed',
-                    opacity: input?.trim() ? 1 : 0.5,
+                    cursor: input.trim() ? 'pointer' : 'not-allowed',
+                    opacity: input.trim() ? 1 : 0.5,
                     fontSize: '13px',
                     fontFamily: 'monospace',
                   }}
                 >
-                  ↓ TXT
+                  TXT
                 </button>
               </div>
             </div>
@@ -447,8 +526,8 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
             <input
               readOnly
               value={shareUrl}
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-              aria-label="Shareable URL — click to select all"
+              onClick={e => (e.target as HTMLInputElement).select()}
+              aria-label="Shareable URL - click to select all"
               style={{
                 flex: 1,
                 background: 'transparent',
@@ -536,7 +615,12 @@ const [restoredFromUrl, setRestoredFromUrl] = useState(false);
         </section>
 
         <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+        <HistoryPanel
+          isOpen={showHistory}
+          onClose={() => setShowHistory(false)}
+          onRestore={handleRestoreFromHistory}
+        />
       </div>
     </main>
-  );
+  )
 }
