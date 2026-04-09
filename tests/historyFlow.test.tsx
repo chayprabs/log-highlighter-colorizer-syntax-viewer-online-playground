@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Home from '../app/page'
+import { resetRateLimitState } from '../lib/rateLimiter'
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
@@ -69,6 +70,7 @@ function getDeleteButtons(panel: HTMLElement) {
 
 beforeEach(() => {
   localStorageMock.clear()
+  resetRateLimitState()
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-04-09T10:00:00.000Z'))
 

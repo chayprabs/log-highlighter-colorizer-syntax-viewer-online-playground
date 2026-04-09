@@ -1,187 +1,43 @@
 /**
- * Log Highlighter — Core highlighting engine
+ * Log Highlighter - Core highlighting engine
  *
- * Processes plain text log input line by line and returns HTML strings
- * where recognized patterns are wrapped in styled <span> elements.
- *
- * Highlight groups applied in priority order:
- *   1. Dates and timestamps
- *   2. Severity keywords (ERROR, WARN, INFO, DEBUG, null, true, false)
- *   3. HTTP method keywords (GET, POST, PUT, DELETE, PATCH)
- *   4. URLs
- *   5. Numbers
- *   6. IPv4 addresses
- *   7. Quoted strings
- *   8. Unix file paths
- *   9. UUIDs
- *   10. Key-value pairs
- *   11. HTTP status codes
- *   12. JSON keys (applied only to lines that appear to be JSON)
- *
- * All RegExp objects are compiled once at module load time.
- * HTML special characters are escaped before span injection to prevent XSS.
- * Already-highlighted ranges are tracked to prevent double-highlighting.
- *
- * ============================================================
- * SECURITY SANITIZATION PIPELINE
- * ============================================================
- *
- * The sanitization flow follows this exact order:
- *   1. Raw user input → sanitizeInput() at entry point
- *   2. sanitizeInput() → normalize line endings, strip ANSI, strip control chars
- *   3. Line-by-line: processLine() → escapeHtml() FIRST, THEN apply highlight spans
- *
- * CRITICAL: HTML escaping MUST happen before any span injection.
- *
- * ReDoS protection:
- *   - Lines > 5000 chars are returned escaped but un-highlighted
- *   - Each line has a 50ms processing time budget
- *   - Regexes are audited for dangerous patterns (nested quantifiers, etc.)
+ * The pipeline is intentionally conservative:
+ *   1. Sanitize raw input
+ *   2. Process each line with a strict highlight priority
+ *   3. Escape raw text before any span injection
+ *   4. Prevent overlapping spans so later groups never rewrite earlier ones
  */
-
-/**
- * Escapes HTML special characters in a raw string to prevent XSS.
- * This MUST be called on every line of user input before span injection.
- *
- * @param raw - The raw untrusted string from user input
- * @returns A string safe to inject into innerHTML
- */
-function escapeHtml(raw: string): string {
-  return raw
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/`/g, '&#x60;')
-}
-
-/**
- * Strips ANSI terminal escape sequences from a string.
- * Handles color codes, cursor movements, and all CSI sequences.
- *
- * @param input - Raw string potentially containing ANSI escape codes
- * @returns String with all ANSI sequences removed
- */
-function stripAnsi(input: string): string {
-  return input.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b[^[]/g, '')
-}
-
-/**
- * Removes null bytes and non-printable control characters from input.
- * Preserves newlines (\n), carriage returns (\r), and tabs (\t).
- *
- * @param input - Raw string from user input
- * @returns Cleaned string with control characters removed
- */
-function stripControlChars(input: string): string {
-  return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-}
-
-/**
- * Normalizes line endings to Unix-style \n.
- * Prevents \r characters from rendering visibly in the browser.
- *
- * @param input - Raw multiline string from user input
- * @returns String with all \r\n and standalone \r replaced with \n
- */
-function normalizeLineEndings(input: string): string {
-  return input.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-}
-
-/**
- * Master sanitization pipeline. Call this on raw user input before
- * passing to the highlighter. Returns a clean, safe string.
- *
- * Pipeline order:
- *   1. Normalize line endings (prevent \r rendering)
- *   2. Strip ANSI escape codes (from terminal-copied logs)
- *   3. Strip null bytes and control characters
- *   NOTE: HTML escaping happens per-line inside processLine(), not here,
- *         because it must run after line splitting but before span injection.
- *
- * @param rawInput - Completely untrusted string directly from textarea
- * @returns Sanitized string ready for line-by-line processing
- */
-export function sanitizeInput(rawInput: string): string {
-  return stripControlChars(stripAnsi(normalizeLineEndings(rawInput)))
-}
 
 export interface Span {
-  start: number;
-  end: number;
-  style: string;
+  start: number
+  end: number
+  style: string
 }
 
-/**
- * Configuration for each highlight group.
- */
 export interface HighlightGroupConfig {
-  name: string;
-  enabled: boolean;
-  description: string;
+  name: string
+  enabled: boolean
+  description: string
 }
 
-/**
- * All highlight groups with their enabled status.
- * Can be used to build a toggle UI for enabling/disabling highlight categories.
- */
-export const HIGHLIGHT_GROUPS: HighlightGroupConfig[] = [
-  { name: 'dates', enabled: true, description: 'ISO dates, times, timezones, nginx dates, plain dates' },
-  { name: 'keywords', enabled: true, description: 'null, true, false, ERROR, WARN, INFO, DEBUG, HTTP methods' },
-  { name: 'urls', enabled: true, description: 'http/https URLs with protocol, host, path, query params' },
-  { name: 'numbers', enabled: true, description: 'Integers and decimals with word boundaries' },
-  { name: 'ipv4', enabled: true, description: 'IPv4 addresses with valid octet checking (0-255)' },
-  { name: 'quotes', enabled: true, description: 'Double-quoted strings' },
-  { name: 'paths', enabled: true, description: 'Unix paths (/, ./, ~/)' },
-  { name: 'uuids', enabled: true, description: 'UUID v4 format with proper validation' },
-  { name: 'keyValue', enabled: true, description: 'key=value and key:value pairs' },
-  { name: 'statusCodes', enabled: true, description: 'HTTP status codes (200, 404, 500, etc.)' },
-  { name: 'json', enabled: true, description: 'JSON object keys' },
-];
-
-/**
- * Result statistics from processing log input.
- */
 export interface HighlightStats {
-  linesProcessed: number;
-  processingTimeMs: number;
+  linesProcessed: number
+  processingTimeMs: number
 }
 
-function isOverlapping(spans: Span[], start: number, end: number): boolean {
-  return spans.some(s => start < s.end && end > s.start);
-}
-
-function addSpan(spans: Span[], start: number, end: number, style: string) {
-  if (start >= end) return;
-  spans.push({ start, end, style });
-}
-
-function applySpans(text: string, spans: Span[]): string {
-  if (spans.length === 0) return escapeHtml(text);
-
-  spans.sort((a, b) => a.start - b.start);
-  const result: string[] = [];
-  let lastEnd = 0;
-
-  for (const span of spans) {
-    if (span.start > lastEnd) {
-      result.push(escapeHtml(text.slice(lastEnd, span.start)));
-    }
-    if (span.start >= lastEnd) {
-      result.push(`<span style="${span.style}">${escapeHtml(text.slice(span.start, span.end))}</span>`);
-      lastEnd = span.end;
-    }
-  }
-
-  if (lastEnd < text.length) {
-    result.push(escapeHtml(text.slice(lastEnd)));
-  }
-
-  return result.join('');
-}
-
-
+export const HIGHLIGHT_GROUPS: HighlightGroupConfig[] = [
+  { name: 'dates', enabled: true, description: 'Dates, timestamps, syslog, and nginx-style time strings' },
+  { name: 'keywords', enabled: true, description: 'Booleans, null-like values, log levels, and HTTP methods' },
+  { name: 'urls', enabled: true, description: 'HTTP and HTTPS URLs with query parameters' },
+  { name: 'numbers', enabled: true, description: 'Standalone integers and decimals' },
+  { name: 'ipv4', enabled: true, description: 'IPv4 addresses with strict octet validation' },
+  { name: 'quotes', enabled: true, description: 'Double-quoted strings' },
+  { name: 'paths', enabled: true, description: 'Unix-like absolute and relative paths' },
+  { name: 'uuids', enabled: true, description: 'UUID values' },
+  { name: 'keyValue', enabled: true, description: 'key=value and key: value pairs' },
+  { name: 'statusCodes', enabled: true, description: 'HTTP status codes' },
+  { name: 'json', enabled: true, description: 'JSON object keys on valid JSON lines' },
+]
 
 const COLORS = {
   red: 'color: #dc4b4b',
@@ -193,590 +49,762 @@ const COLORS = {
   white: 'color: #f8f8f2',
   black: 'color: #000000',
   faint: 'opacity: 0.6',
-};
+}
 
-const MAGENTA = 'color: #c51e8a';
-const CYAN = 'color: #36c4c4';
-const BLUE = 'color: #2aa1d3';
-const RED = 'color: #dc4b4b';
-const FAINT = 'opacity: 0.6';
+const DATE_STYLE = COLORS.magenta
+const DATE_SEPARATOR_STYLE = combineStyles(COLORS.magenta, COLORS.faint)
+const TIME_STYLE = COLORS.blue
+const TIME_SEPARATOR_STYLE = combineStyles(COLORS.blue, COLORS.faint)
+const TIMEZONE_STYLE = COLORS.red
+const NUMBER_STYLE = COLORS.cyan
+const IPV4_STYLE = combineStyles(COLORS.blue, 'font-style: italic')
+const PATH_STYLE = combineStyles(COLORS.green, 'font-style: italic')
+const UUID_PRIMARY_STYLE = combineStyles(COLORS.blue, 'font-style: italic')
+const UUID_SECONDARY_STYLE = combineStyles(COLORS.magenta, 'font-style: italic')
+const KEY_STYLE = combineStyles(COLORS.white, COLORS.faint)
+const METHOD_GET_STYLE = combineStyles(COLORS.black, 'background-color: #50fa7b', 'font-weight: bold')
+const METHOD_POST_STYLE = combineStyles(COLORS.black, 'background-color: #f1fa8c', 'font-weight: bold')
+const METHOD_WRITE_STYLE = combineStyles(COLORS.black, 'background-color: #ff79c6', 'font-weight: bold')
+const METHOD_DELETE_STYLE = combineStyles(COLORS.black, 'background-color: #ff5555', 'font-weight: bold')
+const METHOD_MISC_STYLE = combineStyles(COLORS.black, 'background-color: #8be9fd', 'font-weight: bold')
+
+const ANSI_PATTERN = /\x1b(?:\[[0-9;?]*[ -/]*[@-~]|[@-_])/g
+const CONTROL_CHARS_PATTERN = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g
+const REPEATED_QUOTE_PATTERN = /"(?:\\.|[^"\\])*"/g
+const ISO_DATETIME_PATTERN =
+  /\b(19\d{2}|20\d{2})(-)(0[1-9]|1[0-2])(-)(0[1-9]|[12]\d|3[01])([T\s])([01]\d|2[0-3])(:)([0-5]\d)(:)([0-5]\d)(?:([.,])(\d+))?(Z|[+-]\d{2}:?\d{2})?\b/g
+const ISO_DATE_PATTERN = /\b(19\d{2}|20\d{2})(-)(0[1-9]|1[0-2])(-)(0[1-9]|[12]\d|3[01])\b/g
+const NGINX_DATETIME_PATTERN =
+  /(?:\[)?(\d{2})(\/)([A-Za-z]{3})(\/)(\d{4})(:)(\d{2})(:)(\d{2})(:)(\d{2})(?:\s([+-]\d{4}))?(?:\])?/g
+const SYSLOG_DATETIME_PATTERN =
+  /\b([A-Za-z]{3})(\s+)(\d{1,2})(\s+)([01]\d|2[0-3])(:)([0-5]\d)(:)([0-5]\d)\b/g
+const TIME_ONLY_PATTERN =
+  /\b([01]\d|2[0-3])(:)([0-5]\d)(:)([0-5]\d)(?:([.,])(\d+))?(Z|[+-]\d{2}:?\d{2})?\b/g
+const URL_PATTERN = /\bhttps?:\/\/[^\s<>"']+/g
+const NUMBER_PATTERN = /(?<![A-Za-z0-9_.-])(?:0|[1-9]\d*)(?:\.\d+)?(?![A-Za-z0-9_.-])/g
+const IPV4_OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
+const IPV4_CIDR = '(?:3[0-2]|[12]?\\d)'
+const IPV4_PATTERN = new RegExp(
+  `(?<![\\d.])(${IPV4_OCTET})(\\. )`.replace(' ', '')
+    + `(${IPV4_OCTET})(\\. )`.replace(' ', '')
+    + `(${IPV4_OCTET})(\\. )`.replace(' ', '')
+    + `(${IPV4_OCTET})(?:\\/(${IPV4_CIDR}))?(?![\\d.])`,
+  'g'
+)
+const PATH_PATTERN = /(^|[\s(\[{,;])((?:~\/|\.{1,2}\/|\/)(?:[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)?)/g
+const UUID_PATTERN = /\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b/g
+const KEY_VALUE_PATTERN = /(^|[\s\[{(,])([A-Za-z_][A-Za-z0-9_.-]{0,63})([=:])(?!\/\/)\s*([^\s,;]+)?/g
+const STATUS_CODE_PATTERN = /(?<![./:-])\b([1-5][0-9]{2})\b(?![./:-])/g
+const JSON_KEY_PATTERN = /"([^"\\]+)"(?=\s*:)/g
+
+const BOOLEAN_PATTERNS: Array<[RegExp, string]> = [
+  [/\bnull\b/gi, COLORS.red],
+  [/\bnil\b/gi, COLORS.red],
+  [/\bNaN\b/g, COLORS.red],
+  [/\bundefined\b/gi, COLORS.red],
+  [/\bfalse\b/gi, combineStyles(COLORS.red, 'font-style: italic')],
+  [/\btrue\b/gi, combineStyles(COLORS.green, 'font-style: italic')],
+]
+
+const METHOD_PATTERNS: Array<[RegExp, string]> = [
+  [/\bGET\b/g, METHOD_GET_STYLE],
+  [/\bPOST\b/g, METHOD_POST_STYLE],
+  [/\bPUT\b/g, METHOD_WRITE_STYLE],
+  [/\bPATCH\b/g, METHOD_WRITE_STYLE],
+  [/\bDELETE\b/g, METHOD_DELETE_STYLE],
+  [/\bHEAD\b/g, METHOD_MISC_STYLE],
+  [/\bOPTIONS\b/g, METHOD_MISC_STYLE],
+  [/\bCONNECT\b/g, METHOD_MISC_STYLE],
+]
+
+const SEVERITY_PATTERNS: Array<[RegExp, string]> = [
+  [/\bERROR\b/g, COLORS.red],
+  [/\bWARN(?:ING)?\b/g, COLORS.yellow],
+  [/\bINFO\b/g, COLORS.white],
+  [/\bDEBUG\b/g, COLORS.green],
+  [/\bSUCCESS\b/g, COLORS.green],
+  [/\bTRACE\b/g, combineStyles(COLORS.white, COLORS.faint)],
+]
 
 function combineStyles(...styles: string[]): string {
-  return styles.join('; ');
+  return styles.join('; ')
+}
+
+export function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/`/g, '&#x60;')
+}
+
+function stripAnsi(input: string): string {
+  return input.replace(ANSI_PATTERN, '')
+}
+
+function stripControlChars(input: string): string {
+  return input.replace(CONTROL_CHARS_PATTERN, '')
+}
+
+function normalizeLineEndings(input: string): string {
+  return input.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
+export function sanitizeInput(rawInput: string): string {
+  return stripControlChars(stripAnsi(normalizeLineEndings(rawInput)))
+}
+
+function cloneRegex(pattern: RegExp): RegExp {
+  return new RegExp(pattern.source, pattern.flags)
+}
+
+function isOverlapping(spans: Span[], start: number, end: number): boolean {
+  return spans.some(span => start < span.end && end > span.start)
+}
+
+function addSpan(spans: Span[], start: number, end: number, style: string): void {
+  if (start >= end || isOverlapping(spans, start, end)) {
+    return
+  }
+  spans.push({ start, end, style })
+}
+
+function addStyledToken(
+  spans: Span[],
+  matchStart: number,
+  tokens: Array<{ text: string; style: string }>
+): void {
+  let cursor = matchStart
+  for (const token of tokens) {
+    addSpan(spans, cursor, cursor + token.text.length, token.style)
+    cursor += token.text.length
+  }
+}
+
+function applySpans(text: string, spans: Span[]): string {
+  if (spans.length === 0) {
+    return escapeHtml(text)
+  }
+
+  const orderedSpans = [...spans].sort((left, right) => left.start - right.start)
+  const result: string[] = []
+  let cursor = 0
+
+  for (const span of orderedSpans) {
+    if (span.start > cursor) {
+      result.push(escapeHtml(text.slice(cursor, span.start)))
+    }
+
+    if (span.start >= cursor) {
+      result.push(
+        `<span style="${span.style}">${escapeHtml(text.slice(span.start, span.end))}</span>`
+      )
+      cursor = span.end
+    }
+  }
+
+  if (cursor < text.length) {
+    result.push(escapeHtml(text.slice(cursor)))
+  }
+
+  return result.join('')
+}
+
+function isStatusCodeContext(line: string, start: number, end: number, code: number): boolean {
+  if (code < 100 || code > 599) {
+    return false
+  }
+
+  const before = line.slice(Math.max(0, start - 16), start)
+  const after = line.slice(end)
+  const nextToken = after.match(/^\s+([A-Z][A-Za-z-]*)/)
+
+  return (
+    nextToken !== null
+    || /^\s*$/.test(after)
+    || /HTTP\/\d(?:\.\d)?\s*$/.test(before)
+    || /\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|CONNECT)\s+$/.test(before)
+  )
 }
 
 function highlightDates(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
-  
-  const nginxDatePattern = /\[(\d{2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}:\d{2}:\d{2})\s*([+-]\d{4})?\]/g;
-  let match;
-  while ((match = nginxDatePattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const day = match[1];
-    const month = match[2];
-    const year = match[3];
-    const time = match[4];
-    const tz = match[5];
-    
-    let pos = match.index;
-    addSpan(spans, pos, pos + day.length, MAGENTA);
-    pos += day.length;
-    addSpan(spans, pos, pos + 1, combineStyles(MAGENTA, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + month.length, MAGENTA);
-    pos += month.length;
-    addSpan(spans, pos, pos + 1, combineStyles(MAGENTA, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + year.length, MAGENTA);
-    pos += year.length;
-    addSpan(spans, pos, pos + 1, combineStyles(MAGENTA, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + time.length, BLUE);
-    pos += time.length;
-    if (tz) {
-      addSpan(spans, pos, pos + tz.length, RED);
+  const spans = [...existingSpans]
+
+  for (const match of Array.from(line.matchAll(cloneRegex(ISO_DATETIME_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
-  }
 
-  const plainDatePattern = /(?:^|\s)([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})(?:\b|$)/g;
-  while ((match = plainDatePattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const month = match[1];
-    const day = match[2];
-    const time = match[3];
-    
-    const startOffset = match[0].startsWith(' ') ? 1 : 0;
-    let pos = match.index + startOffset;
-    addSpan(spans, pos, pos + month.length, MAGENTA);
-    pos += month.length;
-    addSpan(spans, pos, pos + 1, combineStyles(MAGENTA, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + day.length, MAGENTA);
-    pos += day.length;
-    addSpan(spans, pos, pos + 1, combineStyles(MAGENTA, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + time.length, BLUE);
-  }
-
-  const isoDatePattern = /\b(19\d{2}|20\d{2})([-\/])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])\b/g;
-  while ((match = isoDatePattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    const start = match.index;
-    addSpan(spans, start, start + 4, MAGENTA);
-    addSpan(spans, start + 4, start + 5, combineStyles(MAGENTA, FAINT));
-    addSpan(spans, start + 5, start + 7, MAGENTA);
-    addSpan(spans, start + 7, start + 8, combineStyles(MAGENTA, FAINT));
-    addSpan(spans, start + 8, start + 10, MAGENTA);
-  }
-
-  const timePattern = /\b([01]?\d|2[0-3]):([0-5]\d):([0-5]\d)([.,:](\d+))?(Z|[+-]\d{2}:?\d{2})?\b/g;
-  while ((match = timePattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const hours = match[1];
-    const minutes = match[2];
-    const seconds = match[3];
-    const fracSep = match[4];
-    const frac = match[5];
-    const tz = match[6];
-    
-    let pos = match.index;
-    addSpan(spans, pos, pos + hours.length, BLUE);
-    pos += hours.length;
-    addSpan(spans, pos, pos + 1, combineStyles(BLUE, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + minutes.length, BLUE);
-    pos += minutes.length;
-    addSpan(spans, pos, pos + 1, combineStyles(BLUE, FAINT));
-    pos += 1;
-    addSpan(spans, pos, pos + seconds.length, BLUE);
-    pos += seconds.length;
-    
-    if (fracSep && frac) {
-      addSpan(spans, pos, pos + fracSep.length, combineStyles(BLUE, FAINT));
-      pos += fracSep.length;
-      addSpan(spans, pos, pos + frac.length, BLUE);
-      pos += frac.length;
+    const [full, year, dash1, month, dash2, day, separator, hour, colon1, minute, colon2, second, fractionSeparator, fraction, timezone] = match
+    if (isOverlapping(spans, match.index, match.index + full.length)) {
+      continue
     }
-    
-    if (tz) {
-      addSpan(spans, pos, pos + tz.length, RED);
+
+    const tokens = [
+      { text: year, style: DATE_STYLE },
+      { text: dash1, style: DATE_SEPARATOR_STYLE },
+      { text: month, style: DATE_STYLE },
+      { text: dash2, style: DATE_SEPARATOR_STYLE },
+      { text: day, style: DATE_STYLE },
+      { text: separator, style: DATE_SEPARATOR_STYLE },
+      { text: hour, style: TIME_STYLE },
+      { text: colon1, style: TIME_SEPARATOR_STYLE },
+      { text: minute, style: TIME_STYLE },
+      { text: colon2, style: TIME_SEPARATOR_STYLE },
+      { text: second, style: TIME_STYLE },
+    ]
+
+    if (fractionSeparator && fraction) {
+      tokens.push({ text: fractionSeparator, style: TIME_SEPARATOR_STYLE })
+      tokens.push({ text: fraction, style: TIME_STYLE })
     }
+
+    if (timezone) {
+      tokens.push({ text: timezone, style: TIMEZONE_STYLE })
+    }
+
+    addStyledToken(spans, match.index, tokens)
   }
 
-  const usDatePattern = /\b(0[1-9]|1[0-2])([-\/])(0[1-9]|[12]\d|3[01])\2(19\d{2}|20\d{2})\b/g;
-  while ((match = usDatePattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const start = match.index;
-    const month = match[1];
-    const day = match[3];
-    
-    addSpan(spans, start, start + month.length, MAGENTA);
-    addSpan(spans, start + month.length, start + month.length + 1, combineStyles(MAGENTA, FAINT));
-    addSpan(spans, start + month.length + 1, start + month.length + 1 + day.length, MAGENTA);
-    addSpan(spans, start + month.length + 1 + day.length, start + month.length + 1 + day.length + 1, combineStyles(MAGENTA, FAINT));
-    addSpan(spans, start + month.length + 1 + day.length + 1, start + match[0].length, MAGENTA);
+  for (const match of Array.from(line.matchAll(cloneRegex(NGINX_DATETIME_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+
+    const [full, day, slash1, month, slash2, year, colon0, hour, colon1, minute, colon2, second, timezone] = match
+    const startOffset = full.startsWith('[') ? 1 : 0
+    const coreLength = full.length - startOffset - (full.endsWith(']') ? 1 : 0)
+    const coreStart = match.index + startOffset
+
+    if (isOverlapping(spans, coreStart, coreStart + coreLength)) {
+      continue
+    }
+
+    const tokens = [
+      { text: day, style: DATE_STYLE },
+      { text: slash1, style: DATE_SEPARATOR_STYLE },
+      { text: month, style: DATE_STYLE },
+      { text: slash2, style: DATE_SEPARATOR_STYLE },
+      { text: year, style: DATE_STYLE },
+      { text: colon0, style: DATE_SEPARATOR_STYLE },
+      { text: hour, style: TIME_STYLE },
+      { text: colon1, style: TIME_SEPARATOR_STYLE },
+      { text: minute, style: TIME_STYLE },
+      { text: colon2, style: TIME_SEPARATOR_STYLE },
+      { text: second, style: TIME_STYLE },
+    ]
+
+    if (timezone) {
+      tokens.push({ text: ' ', style: DATE_SEPARATOR_STYLE })
+      tokens.push({ text: timezone, style: TIMEZONE_STYLE })
+    }
+
+    addStyledToken(spans, coreStart, tokens)
   }
 
-  return spans;
+  for (const match of Array.from(line.matchAll(cloneRegex(SYSLOG_DATETIME_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+
+    const [full, month, space1, day, space2, hour, colon1, minute, colon2, second] = match
+    if (isOverlapping(spans, match.index, match.index + full.length)) {
+      continue
+    }
+
+    addStyledToken(spans, match.index, [
+      { text: month, style: DATE_STYLE },
+      { text: space1, style: DATE_SEPARATOR_STYLE },
+      { text: day, style: DATE_STYLE },
+      { text: space2, style: DATE_SEPARATOR_STYLE },
+      { text: hour, style: TIME_STYLE },
+      { text: colon1, style: TIME_SEPARATOR_STYLE },
+      { text: minute, style: TIME_STYLE },
+      { text: colon2, style: TIME_SEPARATOR_STYLE },
+      { text: second, style: TIME_STYLE },
+    ])
+  }
+
+  for (const match of Array.from(line.matchAll(cloneRegex(ISO_DATE_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+
+    const [full, year, dash1, month, dash2, day] = match
+    if (isOverlapping(spans, match.index, match.index + full.length)) {
+      continue
+    }
+
+    addStyledToken(spans, match.index, [
+      { text: year, style: DATE_STYLE },
+      { text: dash1, style: DATE_SEPARATOR_STYLE },
+      { text: month, style: DATE_STYLE },
+      { text: dash2, style: DATE_SEPARATOR_STYLE },
+      { text: day, style: DATE_STYLE },
+    ])
+  }
+
+  for (const match of Array.from(line.matchAll(cloneRegex(TIME_ONLY_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+
+    const [full, hour, colon1, minute, colon2, second, fractionSeparator, fraction, timezone] = match
+    if (isOverlapping(spans, match.index, match.index + full.length)) {
+      continue
+    }
+
+    const tokens = [
+      { text: hour, style: TIME_STYLE },
+      { text: colon1, style: TIME_SEPARATOR_STYLE },
+      { text: minute, style: TIME_STYLE },
+      { text: colon2, style: TIME_SEPARATOR_STYLE },
+      { text: second, style: TIME_STYLE },
+    ]
+
+    if (fractionSeparator && fraction) {
+      tokens.push({ text: fractionSeparator, style: TIME_SEPARATOR_STYLE })
+      tokens.push({ text: fraction, style: TIME_STYLE })
+    }
+
+    if (timezone) {
+      tokens.push({ text: timezone, style: TIMEZONE_STYLE })
+    }
+
+    addStyledToken(spans, match.index, tokens)
+  }
+
+  return spans
 }
 
 function highlightKeywords(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const boolPatterns: [RegExp, string][] = [
-    [/\bnull\b/gi, COLORS.red],
-    [/\bnil\b/gi, COLORS.red],
-    [/\bNaN\b/gi, COLORS.red],
-    [/\bundefined\b/gi, COLORS.red],
-    [/\bfalse\b/gi, combineStyles(COLORS.red, 'font-style: italic')],
-    [/\btrue\b/gi, combineStyles(COLORS.green, 'font-style: italic')],
-  ];
-
-  for (const [pattern, style] of boolPatterns) {
-    let m;
-    while ((m = pattern.exec(line)) !== null) {
-      if (!isOverlapping(spans, m.index, m.index + m[0].length)) {
-        addSpan(spans, m.index, m.index + m[0].length, style);
+  for (const [pattern, style] of [...BOOLEAN_PATTERNS, ...METHOD_PATTERNS, ...SEVERITY_PATTERNS]) {
+    for (const match of Array.from(line.matchAll(cloneRegex(pattern)))) {
+      if (match.index === undefined) {
+        continue
       }
+      addSpan(spans, match.index, match.index + match[0].length, style)
     }
   }
 
-  const methodPatterns: [RegExp, string][] = [
-    [/\bGET\b/g, combineStyles(COLORS.black, 'background-color: #50fa7b', 'font-weight: bold')],
-    [/\bPOST\b/g, combineStyles(COLORS.black, 'background-color: #f1fa8c', 'font-weight: bold')],
-    [/\bPUT\b/g, combineStyles(COLORS.black, 'background-color: #ff79c6', 'font-weight: bold')],
-    [/\bPATCH\b/g, combineStyles(COLORS.black, 'background-color: #ff79c6', 'font-weight: bold')],
-    [/\bDELETE\b/g, combineStyles(COLORS.black, 'background-color: #ff5555', 'font-weight: bold')],
-    [/\bHEAD\b/g, combineStyles(COLORS.black, 'background-color: #8be9fd', 'font-weight: bold')],
-    [/\bOPTIONS\b/g, combineStyles(COLORS.black, 'background-color: #8be9fd', 'font-weight: bold')],
-    [/\bCONNECT\b/g, combineStyles(COLORS.black, 'background-color: #8be9fd', 'font-weight: bold')],
-  ];
-
-  for (const [pattern, style] of methodPatterns) {
-    let m;
-    while ((m = pattern.exec(line)) !== null) {
-      if (!isOverlapping(spans, m.index, m.index + m[0].length)) {
-        addSpan(spans, m.index, m.index + m[0].length, style);
-      }
-    }
-  }
-
-  const severityPatterns: [RegExp, string][] = [
-    [/\bERROR\b/g, COLORS.red],
-    [/\bWARN(?:ING)?\b/g, COLORS.yellow],
-    [/\bINFO\b/g, COLORS.white],
-    [/\bDEBUG\b/g, COLORS.green],
-    [/\bSUCCESS\b/g, COLORS.green],
-    [/\bTRACE\b/g, combineStyles(COLORS.white, COLORS.faint)],
-  ];
-
-  for (const [pattern, style] of severityPatterns) {
-    let m;
-    while ((m = pattern.exec(line)) !== null) {
-      if (!isOverlapping(spans, m.index, m.index + m[0].length)) {
-        addSpan(spans, m.index, m.index + m[0].length, style);
-      }
-    }
-  }
-
-  return spans;
+  return spans
 }
 
 function highlightUrls(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const urlPattern = /(https?)(:\/\/)([A-Za-z0-9._-]+)(?::(\d{1,5}))?(\/[A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]*)?(\?[A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]*)?/g;
-  
-  let match;
-  while ((match = urlPattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const protocol = match[1] || '';
-    const host = match[3] || '';
-    const port = match[4] || '';
-    const path = match[5] || '';
-    const query = match[6] || '';
-    let pos = match.index;
-    
-    const protocolStyle = protocol === 'https' ? combineStyles(COLORS.green, COLORS.faint) : combineStyles(COLORS.red, COLORS.faint);
-    addSpan(spans, pos, pos + protocol.length, protocolStyle);
-    pos += protocol.length;
-    
-    addSpan(spans, pos, pos + 3, combineStyles(COLORS.red, COLORS.faint));
-    pos += 3;
-    
-    addSpan(spans, pos, pos + host.length, combineStyles(COLORS.blue, COLORS.faint));
-    pos += host.length;
-    
-    if (port) {
-      addSpan(spans, pos, pos + 1, combineStyles(COLORS.red, COLORS.faint));
-      addSpan(spans, pos + 1, pos + port.length + 1, combineStyles(COLORS.blue, COLORS.faint));
-      pos += port.length + 1;
+  for (const match of Array.from(line.matchAll(cloneRegex(URL_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
-    
-    if (path) {
-      addSpan(spans, pos, pos + path.length, COLORS.blue);
-      pos += path.length;
+
+    let rawUrl = match[0]
+    while (/[),.;]$/.test(rawUrl)) {
+      rawUrl = rawUrl.slice(0, -1)
     }
-    
-    if (query) {
-      const qPos = pos;
-      const qMatch = query.match(/(\?)([A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]*)/);
-      if (qMatch) {
-        addSpan(spans, qPos, qPos + 1, combineStyles(COLORS.red, COLORS.faint));
-        const params = qMatch[2];
-        const pPos = qPos + 1;
-        
-        const paramPattern = /([A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]*)=([A-Za-z0-9._~:/?#[\]@!$&'()*+,;=%-]*)/g;
-        let pMatch;
-        while ((pMatch = paramPattern.exec(params)) !== null) {
-          addSpan(spans, pPos + pMatch.index, pPos + pMatch.index + pMatch[1].length, COLORS.magenta);
-          addSpan(spans, pPos + pMatch.index + pMatch[1].length, pPos + pMatch.index + pMatch[0].length - pMatch[2].length, combineStyles(COLORS.red, COLORS.faint));
-          addSpan(spans, pPos + pMatch.index + pMatch[0].length - pMatch[2].length, pPos + pMatch.index + pMatch[0].length, CYAN);
-        }
+
+    const start = match.index
+    const end = start + rawUrl.length
+
+    if (isOverlapping(spans, start, end)) {
+      continue
+    }
+
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(rawUrl)
+    } catch {
+      continue
+    }
+
+    const protocolText = `${parsedUrl.protocol.slice(0, -1)}`
+    const hostText = parsedUrl.hostname
+    const portText = parsedUrl.port
+    const pathText = `${parsedUrl.pathname}${parsedUrl.hash}`
+    const searchText = parsedUrl.search
+
+    const protocolStyle =
+      parsedUrl.protocol === 'https:' ? combineStyles(COLORS.green, COLORS.faint) : combineStyles(COLORS.red, COLORS.faint)
+
+    let cursor = start
+    addSpan(spans, cursor, cursor + protocolText.length, protocolStyle)
+    cursor += protocolText.length
+
+    addSpan(spans, cursor, cursor + 3, combineStyles(COLORS.red, COLORS.faint))
+    cursor += 3
+
+    addSpan(spans, cursor, cursor + hostText.length, combineStyles(COLORS.blue, COLORS.faint))
+    cursor += hostText.length
+
+    if (portText) {
+      addSpan(spans, cursor, cursor + 1, combineStyles(COLORS.red, COLORS.faint))
+      cursor += 1
+      addSpan(spans, cursor, cursor + portText.length, combineStyles(COLORS.blue, COLORS.faint))
+      cursor += portText.length
+    }
+
+    if (pathText) {
+      const pathOnly = parsedUrl.pathname || ''
+      if (pathOnly) {
+        addSpan(spans, cursor, cursor + pathOnly.length, COLORS.blue)
+        cursor += pathOnly.length
       }
+      if (parsedUrl.hash) {
+        addSpan(spans, cursor, cursor + parsedUrl.hash.length, combineStyles(COLORS.blue, COLORS.faint))
+        cursor += parsedUrl.hash.length
+      }
+    }
+
+    if (searchText) {
+      addSpan(spans, cursor, cursor + 1, combineStyles(COLORS.red, COLORS.faint))
+      cursor += 1
+
+      const queryBody = searchText.slice(1)
+      const params = queryBody.split('&')
+      params.forEach((param, index) => {
+        const [key, value = ''] = param.split('=')
+        if (key) {
+          addSpan(spans, cursor, cursor + key.length, COLORS.magenta)
+          cursor += key.length
+        }
+
+        if (param.includes('=')) {
+          addSpan(spans, cursor, cursor + 1, combineStyles(COLORS.red, COLORS.faint))
+          cursor += 1
+          if (value) {
+            addSpan(spans, cursor, cursor + value.length, COLORS.cyan)
+            cursor += value.length
+          }
+        }
+
+        if (index < params.length - 1) {
+          addSpan(spans, cursor, cursor + 1, combineStyles(COLORS.red, COLORS.faint))
+          cursor += 1
+        }
+      })
     }
   }
 
-  return spans;
+  return spans
 }
 
 function highlightNumbers(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const numberPattern = /\b\d+(?:\.\d+)?\b/g;
-  let match;
-  while ((match = numberPattern.exec(line)) !== null) {
-    if (!isOverlapping(spans, match.index, match.index + match[0].length)) {
-      addSpan(spans, match.index, match.index + match[0].length, CYAN);
+  for (const match of Array.from(line.matchAll(cloneRegex(NUMBER_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
+
+    const code = Number(match[0])
+    if (match[0].length === 3 && isStatusCodeContext(line, match.index, match.index + match[0].length, code)) {
+      continue
+    }
+
+    addSpan(spans, match.index, match.index + match[0].length, NUMBER_STYLE)
   }
 
-  return spans;
+  return spans
 }
 
 function highlightIPv4(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const ipv4Pattern = /\b(\d{1,3})(\.)(\d{1,3})(\.)(\d{1,3})(\.)(\d{1,3})(?:\/(\d{1,2}))?\b/g;
-  let match;
-  while ((match = ipv4Pattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const o1 = parseInt(match[1]);
-    const o2 = parseInt(match[3]);
-    const o3 = parseInt(match[5]);
-    const o4 = parseInt(match[7]);
-    const cidr = match[8];
-    
-    if (o1 > 255 || o2 > 255 || o3 > 255 || o4 > 255) continue;
-    if (cidr && parseInt(cidr) > 32) continue;
-    
-    let pos = match.index;
-    const octets = [match[1], match[3], match[5], match[7]];
-    
-    for (let i = 0; i < octets.length; i++) {
-      addSpan(spans, pos, pos + octets[i].length, combineStyles(COLORS.blue, 'font-style: italic'));
-      pos += octets[i].length;
-      if (i < 3) {
-        addSpan(spans, pos, pos + 1, COLORS.red);
-        pos += 1;
-      }
+  for (const match of Array.from(line.matchAll(cloneRegex(IPV4_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
-    
+
+    const [full, first, dot1, second, dot2, third, dot3, fourth, cidr] = match
+    if (isOverlapping(spans, match.index, match.index + full.length)) {
+      continue
+    }
+
+    let cursor = match.index
+    addSpan(spans, cursor, cursor + first.length, IPV4_STYLE)
+    cursor += first.length
+    addSpan(spans, cursor, cursor + dot1.length, COLORS.red)
+    cursor += dot1.length
+    addSpan(spans, cursor, cursor + second.length, IPV4_STYLE)
+    cursor += second.length
+    addSpan(spans, cursor, cursor + dot2.length, COLORS.red)
+    cursor += dot2.length
+    addSpan(spans, cursor, cursor + third.length, IPV4_STYLE)
+    cursor += third.length
+    addSpan(spans, cursor, cursor + dot3.length, COLORS.red)
+    cursor += dot3.length
+    addSpan(spans, cursor, cursor + fourth.length, IPV4_STYLE)
+    cursor += fourth.length
+
     if (cidr) {
-      addSpan(spans, pos, pos + 1, COLORS.red);
-      addSpan(spans, pos + 1, pos + 1 + cidr.length, combineStyles(COLORS.blue, 'font-style: italic'));
+      addSpan(spans, cursor, cursor + 1, COLORS.red)
+      cursor += 1
+      addSpan(spans, cursor, cursor + cidr.length, IPV4_STYLE)
     }
   }
 
-  return spans;
+  return spans
 }
 
 function highlightQuotes(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const quotePositions: number[] = [];
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === '"') quotePositions.push(i);
-  }
-
-  if (quotePositions.length >= 2 && quotePositions.length % 2 === 0) {
-    for (let i = 0; i < quotePositions.length; i += 2) {
-      const start = quotePositions[i];
-      const end = quotePositions[i + 1] + 1;
-      if (!isOverlapping(spans, start, end)) {
-        addSpan(spans, start, end, COLORS.yellow);
-      }
+  for (const match of Array.from(line.matchAll(cloneRegex(REPEATED_QUOTE_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
+    addSpan(spans, match.index, match.index + match[0].length, COLORS.yellow)
   }
 
-  return spans;
+  return spans
 }
 
 function highlightPaths(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const pathPattern = /(?:^|\s)(\.{0,2}\/|\/|\~\/)([A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)/g;
-  let match;
-  while ((match = pathPattern.exec(line)) !== null) {
-    const prefix = match[1];
-    const path = match[2];
-    const actualStart = match[0].startsWith(' ') ? match.index + 1 : match.index;
-    
-    if (isOverlapping(spans, actualStart, actualStart + match[0].trim().length)) continue;
-    
-    const pathStart = actualStart + prefix.length;
-    
-    if (prefix === '/' || prefix === '//') {
-      addSpan(spans, actualStart, actualStart + prefix.length, COLORS.yellow);
-    } else if (prefix === './') {
-      addSpan(spans, actualStart, actualStart + 1, combineStyles(COLORS.green, 'font-style: italic'));
-      addSpan(spans, actualStart + 1, actualStart + 2, COLORS.yellow);
-    } else if (prefix === '~/') {
-      addSpan(spans, actualStart, actualStart + 1, combineStyles(COLORS.green, 'font-style: italic'));
-      addSpan(spans, actualStart + 1, actualStart + 2, COLORS.yellow);
+  for (const match of Array.from(line.matchAll(cloneRegex(PATH_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
-    
-    let pos = pathStart;
-    const segments = path.split('/');
-    for (let i = 0; i < segments.length; i++) {
-      if (segments[i]) {
-        addSpan(spans, pos, pos + segments[i].length, combineStyles(COLORS.green, 'font-style: italic'));
-        pos += segments[i].length;
-      }
-      if (i < segments.length - 1) {
-        addSpan(spans, pos, pos + 1, COLORS.yellow);
-        pos += 1;
-      }
+
+    const boundary = match[1] ?? ''
+    const pathText = match[2] ?? ''
+    const pathStart = match.index + boundary.length
+    const pathEnd = pathStart + pathText.length
+
+    if (!pathText || isOverlapping(spans, pathStart, pathEnd)) {
+      continue
     }
+
+    let cursor = pathStart
+    const prefixMatch = pathText.match(/^(~\/|\.{1,2}\/|\/)/)
+    const prefix = prefixMatch?.[0] ?? ''
+
+    if (prefix) {
+      if (prefix.startsWith('.')) {
+        addSpan(spans, cursor, cursor + prefix.length - 1, PATH_STYLE)
+        addSpan(spans, cursor + prefix.length - 1, cursor + prefix.length, COLORS.yellow)
+      } else if (prefix.startsWith('~/')) {
+        addSpan(spans, cursor, cursor + 1, PATH_STYLE)
+        addSpan(spans, cursor + 1, cursor + 2, COLORS.yellow)
+      } else {
+        addSpan(spans, cursor, cursor + prefix.length, COLORS.yellow)
+      }
+      cursor += prefix.length
+    }
+
+    const remainder = pathText.slice(prefix.length)
+    const segments = remainder.split('/')
+    segments.forEach((segment: string, index: number) => {
+      if (segment) {
+        addSpan(spans, cursor, cursor + segment.length, PATH_STYLE)
+        cursor += segment.length
+      }
+
+      if (index < segments.length - 1) {
+        addSpan(spans, cursor, cursor + 1, COLORS.yellow)
+        cursor += 1
+      }
+    })
   }
 
-  return spans;
+  return spans
 }
 
 function highlightUUIDs(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const uuidPattern = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
-  let match;
-  while ((match = uuidPattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    let pos = match.index;
-    
-    addSpan(spans, pos, pos + 8, combineStyles(COLORS.blue, 'font-style: italic'));
-    pos += 8;
-    addSpan(spans, pos, pos + 1, COLORS.red);
-    pos += 1;
-    addSpan(spans, pos, pos + 4, combineStyles(COLORS.magenta, 'font-style: italic'));
-    pos += 4;
-    addSpan(spans, pos, pos + 1, COLORS.red);
-    pos += 1;
-    addSpan(spans, pos, pos + 4, combineStyles(COLORS.magenta, 'font-style: italic'));
-    pos += 4;
-    addSpan(spans, pos, pos + 1, COLORS.red);
-    pos += 1;
-    addSpan(spans, pos, pos + 4, combineStyles(COLORS.magenta, 'font-style: italic'));
-    pos += 4;
-    addSpan(spans, pos, pos + 1, COLORS.red);
-    pos += 1;
-    addSpan(spans, pos, pos + 12, combineStyles(COLORS.blue, 'font-style: italic'));
+  for (const match of Array.from(line.matchAll(cloneRegex(UUID_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+
+    if (isOverlapping(spans, match.index, match.index + match[0].length)) {
+      continue
+    }
+
+    const segments = match[0].split('-')
+    let cursor = match.index
+
+    segments.forEach((segment: string, index: number) => {
+      const style = index === 1 || index === 2 || index === 3 ? UUID_SECONDARY_STYLE : UUID_PRIMARY_STYLE
+      addSpan(spans, cursor, cursor + segment.length, style)
+      cursor += segment.length
+
+      if (index < segments.length - 1) {
+        addSpan(spans, cursor, cursor + 1, COLORS.red)
+        cursor += 1
+      }
+    })
   }
 
-  return spans;
+  return spans
 }
 
 function highlightKeyValue(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const kvPattern = /(?:^|\s)([A-Za-z_][A-Za-z0-9_]*)([=:])(?:\s*)([^=\s]+)?/g;
-  let match;
-  while ((match = kvPattern.exec(line)) !== null) {
-    const [full, key, sep] = match;
-    const start = match.index + (match[0].length - full.length);
-    
-    if (isOverlapping(spans, start, start + key.length + sep.length)) continue;
-    
-    addSpan(spans, start, start + key.length, combineStyles(COLORS.white, COLORS.faint));
-    addSpan(spans, start + key.length, start + key.length + sep.length, COLORS.white);
+  for (const match of Array.from(line.matchAll(cloneRegex(KEY_VALUE_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+
+    const boundary = match[1] ?? ''
+    const key = match[2] ?? ''
+    const separator = match[3] ?? ''
+    const start = match.index + boundary.length
+    const end = start + key.length + separator.length
+
+    if (!key || isOverlapping(spans, start, end)) {
+      continue
+    }
+
+    addSpan(spans, start, start + key.length, KEY_STYLE)
+    addSpan(spans, start + key.length, end, COLORS.white)
   }
 
-  return spans;
+  return spans
 }
 
 function highlightStatusCodes(line: string, existingSpans: Span[]): Span[] {
-  const spans: Span[] = [...existingSpans];
+  const spans = [...existingSpans]
 
-  const statusPattern = /\b([1-5][0-9]{2})\b/g;
-  let match;
-  while ((match = statusPattern.exec(line)) !== null) {
-    if (isOverlapping(spans, match.index, match.index + match[0].length)) continue;
-    
-    const code = parseInt(match[1]);
-    let style: string;
-    
-    if (code >= 200 && code < 300) {
-      style = COLORS.green;
-    } else if (code >= 300 && code < 400) {
-      style = COLORS.yellow;
-    } else if (code >= 400 && code < 500) {
-      style = COLORS.red;
-    } else if (code >= 500) {
-      style = combineStyles(COLORS.red, 'font-weight: bold');
-    } else {
-      continue;
+  for (const match of Array.from(line.matchAll(cloneRegex(STATUS_CODE_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
     }
-    
-    addSpan(spans, match.index, match.index + match[0].length, style);
+
+    if (isOverlapping(spans, match.index, match.index + match[0].length)) {
+      continue
+    }
+
+    const code = Number(match[1])
+    if (!isStatusCodeContext(line, match.index, match.index + match[0].length, code)) {
+      continue
+    }
+
+    let style = ''
+
+    if (code >= 200 && code < 300) {
+      style = COLORS.green
+    } else if (code >= 300 && code < 400) {
+      style = COLORS.yellow
+    } else if (code >= 400 && code < 500) {
+      style = COLORS.red
+    } else if (code >= 500) {
+      style = combineStyles(COLORS.red, 'font-weight: bold')
+    }
+
+    if (style) {
+      addSpan(spans, match.index, match.index + match[0].length, style)
+    }
   }
 
-  return spans;
+  return spans
 }
 
 function highlightJSON(line: string, existingSpans: Span[]): Span[] {
-  const trimmed = line.trim();
+  const trimmed = line.trim()
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-    return existingSpans;
+    return existingSpans
   }
-  
+
   try {
-    JSON.parse(trimmed);
+    JSON.parse(trimmed)
   } catch {
-    return existingSpans;
+    return existingSpans
   }
-  
-  const spans: Span[] = [...existingSpans];
-  
-  const jsonKeyPattern = /"([^"]+)"(?=\s*:)/g;
-  let match;
-  while ((match = jsonKeyPattern.exec(line)) !== null) {
-    if (!isOverlapping(spans, match.index, match.index + match[0].length)) {
-      addSpan(spans, match.index, match.index + match[0].length, COLORS.yellow);
+
+  const spans = [...existingSpans]
+
+  for (const match of Array.from(line.matchAll(cloneRegex(JSON_KEY_PATTERN)))) {
+    if (match.index === undefined) {
+      continue
+    }
+    addSpan(spans, match.index, match.index + match[0].length, COLORS.yellow)
+  }
+
+  return spans
+}
+
+function processLine(rawLine: string): string {
+  const MAX_LINE_PROCESS_MS = 50
+  const MAX_LINE_LENGTH = 5000
+
+  if (rawLine.length > MAX_LINE_LENGTH) {
+    return escapeHtml(rawLine)
+  }
+
+  const start = performance.now()
+
+  try {
+    let spans: Span[] = []
+    const pipeline = [
+      highlightDates,
+      highlightKeywords,
+      highlightUrls,
+      highlightNumbers,
+      highlightIPv4,
+      highlightQuotes,
+      highlightPaths,
+      highlightUUIDs,
+      highlightKeyValue,
+      highlightStatusCodes,
+      highlightJSON,
+    ]
+
+    for (const highlighter of pipeline) {
+      spans = highlighter(rawLine, spans)
+      if (performance.now() - start > MAX_LINE_PROCESS_MS) {
+        return escapeHtml(rawLine)
+      }
+    }
+
+    return applySpans(rawLine, spans)
+  } catch {
+    return escapeHtml(rawLine)
+  }
+}
+
+export function highlightLog(input: string): string {
+  if (!input) {
+    return ''
+  }
+
+  const sanitized = sanitizeInput(input)
+  return sanitized
+    .split('\n')
+    .map(line => processLine(line))
+    .join('\n')
+}
+
+export function highlightLogWithStats(input: string): { html: string; stats: HighlightStats } {
+  const start = performance.now()
+
+  if (!input) {
+    return {
+      html: '',
+      stats: {
+        linesProcessed: 0,
+        processingTimeMs: 0,
+      },
     }
   }
 
-  return spans;
-}
+  const sanitized = sanitizeInput(input)
+  const lines = sanitized.split('\n')
+  const html = lines.map(line => processLine(line)).join('\n')
+  const processingTimeMs = Math.round((performance.now() - start) * 100) / 100
 
-/**
- * Process a single line with ReDoS protection.
- *
- * Flow:
- *   1. Check line length - if > 5000, return escaped without highlights
- *   2. Run highlight functions on RAW line to collect spans
- *   3. applySpans handles HTML escaping in a single pass
- *
- * ReDoS Protection:
- *   - Lines > 5000 chars are escaped and returned without highlighting
- *   - Each line has 50ms max processing time budget
- *   - Any regex error falls back to escaped output only
- *
- * @param rawLine - A single raw line of log input (not yet HTML-escaped)
- * @returns HTML string with highlight spans, or plain escaped fallback
- */
-function processLine(rawLine: string): string {
-  const MAX_LINE_PROCESS_MS = 50;
-  const MAX_LINE_LENGTH = 5000;
-
-  if (rawLine.length > MAX_LINE_LENGTH) {
-    return escapeHtml(rawLine);
-  }
-
-  const start = performance.now();
-
-  try {
-    let spans: Span[] = [];
-    
-    spans = highlightDates(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightKeywords(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightUrls(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightIPv4(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightUUIDs(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightStatusCodes(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightNumbers(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightQuotes(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightPaths(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightKeyValue(rawLine, spans);
-    if (performance.now() - start > MAX_LINE_PROCESS_MS) return escapeHtml(rawLine);
-
-    spans = highlightJSON(rawLine, spans);
-
-    return applySpans(rawLine, spans);
-  } catch {
-    return escapeHtml(rawLine);
-  }
-}
-
-/**
- * Highlights log text by wrapping recognized patterns in styled HTML spans.
- *
- * @param input - Raw log text to highlight
- * @returns HTML string with styled spans for recognized patterns
- *
- * @example
- * const result = highlightLog('2024-01-15 10:30:45 INFO Starting server');
- * // Returns: "2024-01-15 10:30:45 <span style="color:...">INFO</span> Starting server"
- */
-export function highlightLog(input: string): string {
-  if (!input) return '';
-  
-  const sanitized = sanitizeInput(input);
-  const lines = sanitized.split('\n');
-  return lines.map(line => processLine(line)).join('\n');
-}
-
-/**
- * Highlights log input and returns both the HTML output and processing statistics.
- *
- * @param input - Raw log text to highlight
- * @returns Object containing highlighted HTML string and stats
- *
- * @example
- * const result = highlightLogWithStats('ERROR: Connection failed');
- * // Returns: { html: 'ERROR: Connection failed', stats: { linesProcessed: 1, processingTimeMs: 0.15 } }
- */
-export function highlightLogWithStats(input: string): { html: string; stats: HighlightStats } {
-  const startTime = performance.now();
-  
-  if (!input) {
-    return { html: '', stats: { linesProcessed: 0, processingTimeMs: 0 } };
-  }
-  
-  const sanitized = sanitizeInput(input);
-  const lines = sanitized.split('\n');
-  const highlightedLines = lines.map(line => processLine(line));
-  
-  const endTime = performance.now();
-  const processingTime = Math.round((endTime - startTime) * 100) / 100;
-  
   return {
-    html: highlightedLines.join('\n'),
+    html,
     stats: {
       linesProcessed: lines.length,
-      processingTimeMs: processingTime,
+      processingTimeMs,
     },
-};
+  }
 }

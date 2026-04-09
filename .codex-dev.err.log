@@ -1,0 +1,54 @@
+ ⨯ ./lib/highlighter.ts
+Error: Failed to read source code from C:\Users\chait\authos\t6\tailspin-web\lib\highlighter.ts
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./lib/highlighter.ts
+./app/page.tsx
+ ⨯ ./lib/highlighter.ts
+Error: Failed to read source code from C:\Users\chait\authos\t6\tailspin-web\lib\highlighter.ts
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./lib/highlighter.ts
+./app/page.tsx
+ ⨯ ./lib/rateLimiter.ts
+Error: Failed to read source code from C:\Users\chait\authos\t6\tailspin-web\lib\rateLimiter.ts
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./lib/rateLimiter.ts
+./app/page.tsx
+ ⨯ ./lib/sharing.ts
+Error: Failed to read source code from C:\Users\chait\authos\t6\tailspin-web\lib\sharing.ts
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./lib/sharing.ts
+./app/page.tsx
+ ⨯ ./lib/history.ts
+Error: Failed to read source code from C:\Users\chait\authos\t6\tailspin-web\lib\history.ts
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./lib/history.ts
+./app/page.tsx
+ ⨯ ./lib/keyboard.ts
+Error: Failed to read source code from C:\Users\chait\authos\t6\tailspin-web\lib\keyboard.ts
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./lib/keyboard.ts
+./app/page.tsx

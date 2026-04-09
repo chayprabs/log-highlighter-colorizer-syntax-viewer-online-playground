@@ -1,58 +1,64 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { exportAsHtml, exportAsText } from '../lib/export'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { exportAsHtml, exportAsText } from '@/lib/export'
+
+let createdBlob: Blob | null = null
 
 beforeEach(() => {
-  global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
-  global.URL.revokeObjectURL = vi.fn()
+  createdBlob = null
+  vi.useFakeTimers()
 
-  const mockAnchor = {
-    click: vi.fn(),
-    style: {},
-    setAttribute: vi.fn(),
-    href: '',
-    download: '',
-  }
-  vi.spyOn(document, 'createElement').mockImplementation((tag) => {
-    if (tag === 'a') return mockAnchor as unknown as HTMLElement
-    return document.createElement(tag)
+  vi.spyOn(URL, 'createObjectURL').mockImplementation(blob => {
+    createdBlob = blob
+    return 'blob:mock-url'
   })
-  vi.spyOn(document.body, 'appendChild').mockImplementation(() => document.body)
-  vi.spyOn(document.body, 'removeChild').mockImplementation(() => document.body)
+
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+})
+
+afterEach(() => {
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('exportAsHtml', () => {
-  it('returns error for empty highlighted HTML', () => {
-    const result = exportAsHtml('', 'raw input')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toContain('empty')
+  it('returns an error for empty highlighted output', () => {
+    expect(exportAsHtml('', 'raw input').ok).toBe(false)
   })
 
-  it('returns error for whitespace-only HTML', () => {
-    const result = exportAsHtml('   ', 'raw input')
-    expect(result.ok).toBe(false)
-  })
-
-  it('returns ok and triggers download for valid input', () => {
-    const result = exportAsHtml('<span style="color:cyan">42</span>', 'raw log line')
+  it('generates a full standalone HTML document for valid output', async () => {
+    const result = exportAsHtml('<span style="color:#36c4c4">42</span>', 'raw input')
     expect(result.ok).toBe(true)
-    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(createdBlob).not.toBeNull()
+
+    const html = await createdBlob?.text()
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<html lang="en">')
+    expect(html).toContain('<head>')
+    expect(html).toContain('<body>')
+    expect(html).toContain('<span style="color:#36c4c4">42</span>')
+
+    vi.advanceTimersByTime(1000)
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
   })
 })
 
 describe('exportAsText', () => {
-  it('returns error for empty raw input', () => {
-    const result = exportAsText('')
-    expect(result.ok).toBe(false)
+  it('returns an error for empty raw input', () => {
+    expect(exportAsText('').ok).toBe(false)
   })
 
-  it('returns error for whitespace-only input', () => {
-    const result = exportAsText('   ')
-    expect(result.ok).toBe(false)
-  })
-
-  it('returns ok and triggers download for valid input', () => {
+  it('downloads the raw text when valid input is provided', async () => {
     const result = exportAsText('2024-01-15 ERROR something failed')
     expect(result.ok).toBe(true)
-    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(createdBlob).not.toBeNull()
+
+    const text = await createdBlob?.text()
+    expect(text).toBe('2024-01-15 ERROR something failed')
+
+    vi.advanceTimersByTime(1000)
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
   })
 })

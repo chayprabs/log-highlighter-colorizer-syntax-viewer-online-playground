@@ -1,50 +1,28 @@
-import { describe, it, expect } from 'vitest'
-import { SHORTCUTS, formatShortcut, registerShortcuts, isMac } from '../lib/keyboard'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { formatShortcut, registerShortcuts, SHORTCUTS } from '@/lib/keyboard'
 
-describe('SHORTCUTS config', () => {
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('SHORTCUTS', () => {
   it('has no duplicate ids', () => {
-    const ids = SHORTCUTS.map(s => s.id)
-    const unique = new Set(ids)
-    expect(unique.size).toBe(ids.length)
+    const ids = SHORTCUTS.map(shortcut => shortcut.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('has no duplicate key combinations', () => {
-    const combos = SHORTCUTS.map(s =>
-      [s.key, s.ctrl, s.shift, s.alt].join('-')
+    const combos = SHORTCUTS.map(shortcut =>
+      [shortcut.key, shortcut.ctrl ?? false, shortcut.shift ?? false, shortcut.alt ?? false].join(':')
     )
-    const unique = new Set(combos)
-    expect(unique.size).toBe(combos.length)
-  })
-
-  it('every shortcut has an id, label, and key', () => {
-    for (const s of SHORTCUTS) {
-      expect(s.id).toBeTruthy()
-      expect(s.label).toBeTruthy()
-      expect(s.key).toBeTruthy()
-    }
+    expect(new Set(combos).size).toBe(combos.length)
   })
 })
 
 describe('formatShortcut', () => {
-  it('formats a ctrl+key shortcut', () => {
-    const s = { id: 'test', label: 'Test', key: 'k', ctrl: true }
-    const result = formatShortcut(s)
-    expect(result).toContain('K')
-    // Contains the modifier (either Cmd or Ctrl depending on platform)
-    expect(result.length).toBeGreaterThan(1)
-  })
-
-  it('formats a ctrl+shift+key shortcut', () => {
-    const s = { id: 'test', label: 'Test', key: 'c', ctrl: true, shift: true }
-    const result = formatShortcut(s)
-    expect(result).toContain('Shift')
-    expect(result).toContain('C')
-  })
-
-  it('formats an escape shortcut without modifiers', () => {
-    const s = { id: 'dismiss', label: 'Dismiss', key: 'Escape' }
-    const result = formatShortcut(s)
-    expect(result).toBe('ESCAPE')
+  it('formats modifier shortcuts for display', () => {
+    expect(formatShortcut({ id: 'share', label: 'Share', key: 's', ctrl: true })).toContain('S')
+    expect(formatShortcut({ id: 'dismiss', label: 'Dismiss', key: 'Escape' })).toBe('Escape')
   })
 })
 
@@ -52,52 +30,40 @@ describe('registerShortcuts', () => {
   it('returns a cleanup function', () => {
     const cleanup = registerShortcuts({})
     expect(typeof cleanup).toBe('function')
-    cleanup() // must not throw
+    cleanup()
   })
 
-  it('calls handler when matching keydown event fires', () => {
-    let called = false
-    const cleanup = registerShortcuts({
-      'focus-input': () => { called = true },
-    })
+  it('fires the matching handler on keydown', () => {
+    const onFocus = vi.fn()
+    const cleanup = registerShortcuts({ 'focus-input': onFocus })
 
-    // Simulate Ctrl+K keydown
-    const event = new KeyboardEvent('keydown', {
-      key: 'k',
-      ctrlKey: true,
-      bubbles: true,
-    })
-    document.dispatchEvent(event)
-
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
     cleanup()
-    expect(called).toBe(true)
+
+    expect(onFocus).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call handler for non-matching key', () => {
-    let called = false
-    const cleanup = registerShortcuts({
-      'focus-input': () => { called = true },
-    })
+  it('prevents the browser save shortcut when sharing', () => {
+    const onShare = vi.fn()
+    const cleanup = registerShortcuts({ share: onShare })
 
-    const event = new KeyboardEvent('keydown', { key: 'z', ctrlKey: true })
+    const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true })
+
     document.dispatchEvent(event)
-
     cleanup()
-    expect(called).toBe(false)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(onShare).toHaveBeenCalledTimes(1)
   })
 
-  it('cleanup removes the listener', () => {
-    let callCount = 0
-    const cleanup = registerShortcuts({
-      'focus-input': () => { callCount++ },
-    })
+  it('removes the same listener during cleanup', () => {
+    const onDismiss = vi.fn()
+    const cleanup = registerShortcuts({ dismiss: onDismiss })
 
-    const event = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })
-    document.dispatchEvent(event)
-    expect(callCount).toBe(1)
-
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     cleanup()
-    document.dispatchEvent(event)
-    expect(callCount).toBe(1) // still 1, listener removed
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+
+    expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 })

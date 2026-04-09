@@ -6,21 +6,34 @@
  * Since the tool works offline, this is informational only — not an error.
  */
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(false)
   const [wasOffline, setWasOffline] = useState(false)
+  const timeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const clearOnlineTimeout = () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+    }
+
     const goOffline = () => {
+      clearOnlineTimeout()
       setIsOffline(true)
       setWasOffline(true)
     }
+
     const goOnline = () => {
       setIsOffline(false)
-      // Show "back online" state briefly then hide
-      setTimeout(() => setWasOffline(false), 3000)
+      clearOnlineTimeout()
+      timeoutRef.current = window.setTimeout(() => {
+        setWasOffline(false)
+        timeoutRef.current = null
+      }, 3000)
     }
 
     window.addEventListener('offline', goOffline)
@@ -30,6 +43,7 @@ export function OfflineBanner() {
     if (!navigator.onLine) goOffline()
 
     return () => {
+      clearOnlineTimeout()
       window.removeEventListener('offline', goOffline)
       window.removeEventListener('online', goOnline)
     }
