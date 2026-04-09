@@ -576,12 +576,12 @@ describe('ANSI Escape Codes', () => {
 describe('Single Quote Escaping', () => {
   it('escapes single quotes in input', () => {
     const result = highlightLog("it's a test")
-    expect(result).toContain('&#39;')
+    expect(result).toMatch(/&#(?:39|x27);/)
   })
 
   it('handles XSS with single quotes', () => {
     const result = highlightLog("<script>alert('xss')</script>")
-    expect(result).toContain('&#39;')
+    expect(result).toMatch(/&#(?:39|x27);/)
     expect(result).not.toContain("alert('xss')")
   })
 })

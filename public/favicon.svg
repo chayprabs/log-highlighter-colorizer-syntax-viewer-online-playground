@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Dark background -->
+  <rect width="32" height="32" rx="6" fill="#0d0d0d"/>
+  <!-- Three log lines representing a log file -->
+  <!-- Line 1: date portion (magenta) -->
+  <rect x="4" y="8" width="8" height="2" rx="1" fill="#c678dd"/>
+  <!-- Line 1: text portion (dim) -->
+  <rect x="14" y="8" width="14" height="2" rx="1" fill="#3a3a3a"/>
+  <!-- Line 2: keyword (green) -->
+  <rect x="4" y="13" width="6" height="2" rx="1" fill="#98c379"/>
+  <!-- Line 2: text with IP (blue) -->
+  <rect x="12" y="13" width="5" height="2" rx="1" fill="#61afef"/>
+  <!-- Line 2: more text -->
+  <rect x="19" y="13" width="9" height="2" rx="1" fill="#3a3a3a"/>
+  <!-- Line 3: error keyword (red) -->
+  <rect x="4" y="18" width="7" height="2" rx="1" fill="#e06c75"/>
+  <!-- Line 3: UUID (cyan) -->
+  <rect x="13" y="18" width="10" height="2" rx="1" fill="#56b6c2"/>
+  <!-- Line 4: dim line -->
+  <rect x="4" y="23" width="20" height="2" rx="1" fill="#2a2a2a"/>
+</svg>
