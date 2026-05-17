@@ -18,6 +18,8 @@ public/sw.js
 public/sw.js.map
 public/workbox-*.js
 public/workbox-*.js.map
+public/fallback-*.js
+public/fallback-*.js.map
 
 # production
 /build
@@ -40,3 +42,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Agent / dev artifacts (do not ship)
+.codex-dev.err.log
+.codex-dev.out.log
+.next-start.err
+.next-start.log
+debug-quotes.js
+debug-regex.js
+debug-test.ts
+debug-url.ts
+.npm-cache/
+.chrome-pwa-profile-test/

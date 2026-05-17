@@ -16,28 +16,30 @@ const geistMono = localFont({
 })
 
 export const viewport: Viewport = {
-  themeColor: '#0d0d0d',
-  colorScheme: 'dark',
+  themeColor: '#0a0a0a',
+  colorScheme: 'dark light',
 }
 
+const CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+
 export const metadata: Metadata = {
-  title: 'Log Highlighter — Syntax highlight any log file online',
+  title: 'Glow — Log syntax highlighter in your browser',
   description:
-    'Paste any log file and get instant color-coded, readable output. Highlights timestamps, log levels, IPs, UUIDs, URLs, HTTP methods, key-value pairs. Zero install, runs in your browser.',
+    'Paste any raw log output and get colour-coded, readable results. Timestamps, error levels, IPs, UUIDs, URLs, and more. Fully client-side — no install, no backend.',
   keywords: [
+    'glow',
     'log highlighter',
     'log colorizer',
     'syntax highlight logs',
     'log viewer online',
     'nginx log viewer',
-    'kubectl log viewer',
-    'log formatter online',
     'developer tools',
     'devops tools',
-    'log analysis',
   ],
-  authors: [{ name: 'authos' }],
-  creator: 'authos',
+  authors: [{ name: 'Chaitanya Prabuddha' }],
+  creator: 'Chaitanya Prabuddha',
+  applicationName: 'Glow',
   robots: 'index, follow',
   icons: {
     icon: [
@@ -55,15 +57,15 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
   openGraph: {
     type: 'website',
-    title: 'Log Highlighter — Syntax highlight any log file online',
+    title: 'Glow — Log syntax highlighter',
     description:
-      'Paste any log file and get instant color-coded, readable output. Timestamps, IPs, UUIDs, HTTP methods and more. Zero install.',
-    siteName: 'Log Highlighter',
+      'Paste raw logs for instant highlighting. Runs entirely in your browser.',
+    siteName: 'Glow',
   },
   twitter: {
     card: 'summary',
-    title: 'Log Highlighter',
-    description: 'Paste any log file and get instant syntax highlighting. Runs in your browser.',
+    title: 'Glow',
+    description: 'Browser-based log syntax highlighter. Paste and go.',
   },
 }
 
@@ -74,6 +76,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta httpEquiv="Content-Security-Policy" content={CSP} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

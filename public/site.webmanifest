@@ -1,6 +1,6 @@
 {
-  "name": "Log Highlighter",
-  "short_name": "LogHL",
+  "name": "Glow",
+  "short_name": "Glow",
   "description": "Paste any log file and get instant syntax highlighting. Timestamps, IPs, UUIDs, HTTP methods, and more. Zero install.",
   "start_url": "/",
   "display": "standalone",
