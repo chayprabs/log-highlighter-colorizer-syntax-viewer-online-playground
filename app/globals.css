@@ -19,3 +19,261 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #525252;
 }
+
+/* Highlight tokens — dark viewer */
+.log-viewer--dark .token-timestamp {
+  color: #5eead4;
+}
+.log-viewer--dark .token-level-error {
+  color: #f87171;
+}
+.log-viewer--dark .token-level-warn {
+  color: #fb923c;
+}
+.log-viewer--dark .token-level-info {
+  color: #4ade80;
+}
+.log-viewer--dark .token-level-debug {
+  color: #a3a3a3;
+}
+.log-viewer--dark .token-status-5xx {
+  color: #ef4444;
+  font-weight: 600;
+}
+.log-viewer--dark .token-status-4xx {
+  color: #fb923c;
+}
+.log-viewer--dark .token-status-3xx {
+  color: #facc15;
+}
+.log-viewer--dark .token-status-2xx {
+  color: #4ade80;
+}
+.log-viewer--dark .token-http-method {
+  color: #c084fc;
+  font-weight: 600;
+}
+.log-viewer--dark .token-url {
+  color: #60a5fa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.log-viewer--dark .token-ip {
+  color: #22d3ee;
+}
+.log-viewer--dark .token-uuid {
+  color: #f472b6;
+}
+.log-viewer--dark .token-path {
+  color: #fdba74;
+}
+.log-viewer--dark .token-key {
+  color: #93c5fd;
+}
+.log-viewer--dark .token-value {
+  color: #e5e5e5;
+}
+.log-viewer--dark .token-json-key {
+  color: #93c5fd;
+}
+.log-viewer--dark .token-string {
+  color: #86efac;
+}
+.log-viewer--dark .token-number {
+  color: #fde047;
+}
+.log-viewer--dark .token-literal {
+  color: #d8b4fe;
+}
+
+/* Highlight tokens — light viewer */
+.log-viewer--light .token-timestamp {
+  color: #0f766e;
+}
+.log-viewer--light .token-level-error {
+  color: #b91c1c;
+}
+.log-viewer--light .token-level-warn {
+  color: #c2410c;
+}
+.log-viewer--light .token-level-info {
+  color: #15803d;
+}
+.log-viewer--light .token-level-debug {
+  color: #737373;
+}
+.log-viewer--light .token-status-5xx {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.log-viewer--light .token-status-4xx {
+  color: #c2410c;
+}
+.log-viewer--light .token-status-3xx {
+  color: #a16207;
+}
+.log-viewer--light .token-status-2xx {
+  color: #15803d;
+}
+.log-viewer--light .token-http-method {
+  color: #7e22ce;
+  font-weight: 600;
+}
+.log-viewer--light .token-url {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.log-viewer--light .token-ip {
+  color: #0e7490;
+}
+.log-viewer--light .token-uuid {
+  color: #be185d;
+}
+.log-viewer--light .token-path {
+  color: #c2410c;
+}
+.log-viewer--light .token-key {
+  color: #1d4ed8;
+}
+.log-viewer--light .token-value {
+  color: #404040;
+}
+.log-viewer--light .token-json-key {
+  color: #1d4ed8;
+}
+.log-viewer--light .token-string {
+  color: #15803d;
+}
+.log-viewer--light .token-number {
+  color: #a16207;
+}
+.log-viewer--light .token-literal {
+  color: #7e22ce;
+}
+
+.log-line {
+  min-height: 1.25rem;
+}
+
+.legend-dark .token-swatch.token-timestamp {
+  background-color: #5eead4;
+}
+.legend-dark .token-swatch.token-level-error {
+  background-color: #f87171;
+}
+.legend-dark .token-swatch.token-level-warn {
+  background-color: #fb923c;
+}
+.legend-dark .token-swatch.token-level-info {
+  background-color: #4ade80;
+}
+.legend-dark .token-swatch.token-level-debug {
+  background-color: #a3a3a3;
+}
+.legend-dark .token-swatch.token-status-5xx {
+  background-color: #ef4444;
+}
+.legend-dark .token-swatch.token-status-4xx {
+  background-color: #fb923c;
+}
+.legend-dark .token-swatch.token-status-3xx {
+  background-color: #facc15;
+}
+.legend-dark .token-swatch.token-status-2xx {
+  background-color: #4ade80;
+}
+.legend-dark .token-swatch.token-http-method {
+  background-color: #c084fc;
+}
+.legend-dark .token-swatch.token-url {
+  background-color: #60a5fa;
+}
+.legend-dark .token-swatch.token-ip {
+  background-color: #22d3ee;
+}
+.legend-dark .token-swatch.token-uuid {
+  background-color: #f472b6;
+}
+.legend-dark .token-swatch.token-path {
+  background-color: #fdba74;
+}
+.legend-dark .token-swatch.token-key {
+  background-color: #93c5fd;
+}
+.legend-dark .token-swatch.token-value {
+  background-color: #e5e5e5;
+}
+.legend-dark .token-swatch.token-json-key {
+  background-color: #93c5fd;
+}
+.legend-dark .token-swatch.token-string {
+  background-color: #86efac;
+}
+.legend-dark .token-swatch.token-number {
+  background-color: #fde047;
+}
+.legend-dark .token-swatch.token-literal {
+  background-color: #d8b4fe;
+}
+
+.legend-light .token-swatch.token-timestamp {
+  background-color: #0f766e;
+}
+.legend-light .token-swatch.token-level-error {
+  background-color: #b91c1c;
+}
+.legend-light .token-swatch.token-level-warn {
+  background-color: #c2410c;
+}
+.legend-light .token-swatch.token-level-info {
+  background-color: #15803d;
+}
+.legend-light .token-swatch.token-level-debug {
+  background-color: #737373;
+}
+.legend-light .token-swatch.token-status-5xx {
+  background-color: #b91c1c;
+}
+.legend-light .token-swatch.token-status-4xx {
+  background-color: #c2410c;
+}
+.legend-light .token-swatch.token-status-3xx {
+  background-color: #a16207;
+}
+.legend-light .token-swatch.token-status-2xx {
+  background-color: #15803d;
+}
+.legend-light .token-swatch.token-http-method {
+  background-color: #7e22ce;
+}
+.legend-light .token-swatch.token-url {
+  background-color: #1d4ed8;
+}
+.legend-light .token-swatch.token-ip {
+  background-color: #0e7490;
+}
+.legend-light .token-swatch.token-uuid {
+  background-color: #be185d;
+}
+.legend-light .token-swatch.token-path {
+  background-color: #c2410c;
+}
+.legend-light .token-swatch.token-key {
+  background-color: #1d4ed8;
+}
+.legend-light .token-swatch.token-value {
+  background-color: #404040;
+}
+.legend-light .token-swatch.token-json-key {
+  background-color: #1d4ed8;
+}
+.legend-light .token-swatch.token-string {
+  background-color: #15803d;
+}
+.legend-light .token-swatch.token-number {
+  background-color: #a16207;
+}
+.legend-light .token-swatch.token-literal {
+  background-color: #7e22ce;
+}

@@ -1,45 +1,30 @@
-# Log Highlighter
+# Glow (`log-highlighter`)
 
-A browser-based log file highlighter. Paste any log output and instantly get color-coded, readable results — no installation, no configuration, no backend.
+Glow is a browser-based log syntax highlighter. Paste raw log output and get colour-coded output — timestamps, severities, HTTP details, IPs, UUIDs, URLs, and more. Everything runs **fully client-side** in JavaScript (regex-based). No WASM, no backend, no accounts.
 
-## What it highlights
+## Product
 
-- Dates and timestamps
-- Log severity keywords (ERROR, WARN, INFO, DEBUG, null, true, false)
-- HTTP methods (GET, POST, PUT, DELETE, PATCH)
-- HTTP status codes (200, 404, 500 etc.)
-- URLs and their components (protocol, host, path, query params)
-- IPv4 addresses
-- UUIDs
-- Numbers
-- Quoted strings
-- Unix file paths
-- Key-value pairs
-- JSON keys
+- **Workspace**: paste input, highlighted output, toolbar (theme, line numbers, word wrap, font size, token filters, legend, share link).
+- **URL state**: full workspace (including pasted text) is LZ-string compressed into the `#state=` hash with an 8,000-character guard.
+- **PWA**: offline shell via `next-pwa` (service worker disabled in `npm run dev`).
+- **Legal pages**: `/privacy`, `/terms`, `/credits`.
 
-## Running locally
+## Scripts
 
-  npm install
-  npm run dev
+```bash
+npm install
+npm run dev      # http://localhost:3000 — no service worker in dev
+npm run build
+npm start
+npm run lint
+npm test
+npm run test:coverage
+```
 
-Open http://localhost:3000
+## Stack
 
-## Building for production
-
-  npm run build
-  npm start
-
-## Tech stack
-
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- Vitest (testing)
-
-## Running tests
-
-  npx vitest run
+Next.js 14, React 18, TypeScript 5, Tailwind CSS 3, Vitest 4, lz-string, next-pwa.
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE). Copyright © 2026 Chaitanya Prabuddha.

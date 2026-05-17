@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: License check
+        run: npx license-checker --production --failOn GPL,AGPL,LGPL
+
+      - name: npm audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Next.js build
+        run: npm run build

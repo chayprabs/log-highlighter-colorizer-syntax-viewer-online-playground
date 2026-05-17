@@ -1,18 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { escapeHtml, highlightLog, sanitizeInput } from '@/lib/highlighter'
-import { checkRateLimit, resetRateLimitState, validateInput } from '@/lib/rateLimiter'
+import { describe, expect, it } from 'vitest'
+import { escapeHtml, highlightLog, highlightLogSync, sanitizeInput } from '@/lib/highlighter'
 
 describe('escapeHtml', () => {
   it('escapes script tags', () => {
     expect(escapeHtml('<script>')).toBe('&lt;script&gt;')
   })
 
-  it('escapes ampersands without double-encoding a raw ampersand', () => {
+  it('escapes ampersands', () => {
     expect(escapeHtml('&')).toBe('&amp;')
   })
 
   it('escapes double quotes', () => {
     expect(escapeHtml('"quoted"')).toBe('&quot;quoted&quot;')
+  })
+
+  it('escapes apostrophes with numeric entity', () => {
+    expect(escapeHtml("'")).toBe('&#39;')
   })
 })
 
@@ -28,57 +31,56 @@ describe('sanitizeInput', () => {
 
 describe('highlightLog security behavior', () => {
   it('never emits raw script tags in highlighted output', () => {
-    const output = highlightLog('<script>alert("xss")</script>')
+    const output = highlightLogSync('<script>alert("xss")</script>')
     expect(output).not.toContain('<script>')
     expect(output).toContain('&lt;script&gt;')
   })
 })
 
-describe('validateInput', () => {
-  it('rejects empty input', () => {
-    const result = validateInput('')
-    expect(result.ok).toBe(false)
+describe('highlightLog token classes', () => {
+  it('wraps ERROR in level-error span', () => {
+    const out = highlightLogSync('ERROR boom')
+    expect(out).toContain('token-level-error')
   })
 
-  it('rejects input larger than 500001 characters', () => {
-    const result = validateInput('a'.repeat(500_001))
-    expect(result.ok).toBe(false)
+  it('wraps IPv4 in token-ip', () => {
+    const out = highlightLogSync('ping 192.168.0.1 done')
+    expect(out).toContain('token-ip')
   })
 
-  it('rejects null bytes', () => {
-    const result = validateInput('hello\x00world')
-    expect(result.ok).toBe(false)
+  it('escapes angle brackets in user text while still wrapping safe tokens', () => {
+    const out = highlightLogSync('192.168.0.1 <x>')
+    expect(out).toContain('&lt;x&gt;')
+    expect(out).toContain('token-ip')
   })
 
-  it('accepts normal log input', () => {
-    const result = validateInput('2024-01-15 ERROR user_id=42')
-    expect(result.ok).toBe(true)
+  it('prioritises timestamp over number when overlapping', () => {
+    const out = highlightLogSync('2024-01-15T10:00:00Z')
+    expect(out).toContain('token-timestamp')
   })
 })
 
-describe('checkRateLimit', () => {
-  beforeEach(() => {
-    resetRateLimitState()
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-04-09T10:00:00.000Z'))
+describe('ReDoS safety (per-line budget)', () => {
+  const run = (input: string): void => {
+    const start = performance.now()
+    highlightLogSync(input)
+    const ms = performance.now() - start
+    expect(ms).toBeLessThan(100)
+  }
+
+  it('handles 10k repeated a characters', () => {
+    run('a'.repeat(10_000))
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
+  it('handles 10k unterminated double-quoted string', () => {
+    run(`"${'a'.repeat(10_000)}`)
   })
 
-  it('allows the first processing run', () => {
-    expect(checkRateLimit()).toEqual({ allowed: true })
+  it('handles 1000 equals signs', () => {
+    run('='.repeat(1000))
   })
 
-  it('blocks a second run that is too soon', () => {
-    expect(checkRateLimit()).toEqual({ allowed: true })
-    vi.setSystemTime(new Date('2026-04-09T10:00:00.100Z'))
-    const result = checkRateLimit()
-
-    expect(result.allowed).toBe(false)
-    if (!result.allowed) {
-      expect(result.retryAfterMs).toBeGreaterThan(0)
-    }
+  it('handles 1000 slashes', () => {
+    run('/'.repeat(1000))
   })
 })
