@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { GlowShell } from '@/components/glow/GlowShell'
 
 export const metadata: Metadata = {
   title: 'Privacy — Glow',
@@ -8,73 +8,51 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage(): JSX.Element {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
-      <p className="mb-6">
-        <Link href="/" className="text-cyan-600 underline dark:text-cyan-400">
-          ← Back to Glow
-        </Link>
-      </p>
-      <h1 className="mb-6 text-3xl font-bold">Privacy</h1>
-
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">Data we collect</h2>
-        <p>
-          Glow collects nothing. Log content you paste is processed entirely within your browser using JavaScript. No log
-          content is transmitted to any server, stored in any database, or shared with any third party.
+    <GlowShell>
+      <div className="gs-page-inner">
+        <div className="gs-page-eyebrow">Privacy</div>
+        <h1 className="gs-page-title">Your logs stay on your machine.</h1>
+        <p className="gs-page-lede">
+          Glow runs entirely in your browser. We don&apos;t operate a backend that sees your log content, and we
+          don&apos;t want to.
         </p>
-      </section>
 
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">URL sharing</h2>
-        <p>
-          If you use the share link feature, your log content is compressed and placed in the URL fragment (the part after
-          #). URL fragments are not sent to any server — they are processed by your browser only. If you share the link
-          with someone, the log content will be visible to them.
-        </p>
-      </section>
+        <section className="gs-page-section">
+          <h2>What we collect</h2>
+          <p>
+            Nothing. Glow doesn&apos;t have an account system, doesn&apos;t set cookies, and doesn&apos;t include any
+            analytics, telemetry, or tracking scripts.
+          </p>
+        </section>
 
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">Cookies</h2>
-        <p>Glow does not set any cookies. Your hosting provider may set short-lived security cookies as part of standard network delivery.</p>
-      </section>
+        <section className="gs-page-section">
+          <h2>What stays on your device</h2>
+          <ul className="gs-page-list">
+            <li>The text you paste or drop into the Input panel never leaves the page.</li>
+            <li>Highlighting and tokenization happen in JavaScript running locally.</li>
+            <li>
+              Glow does not persist anything to <span className="gs-page-kbd">localStorage</span> or IndexedDB.
+            </li>
+          </ul>
+        </section>
 
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">Analytics</h2>
-        <p>None. Glow does not include analytics, tracking pixels, or telemetry.</p>
-      </section>
+        <section className="gs-page-section">
+          <h2>Shareable URLs</h2>
+          <p>
+            The &quot;Share&quot; feature compresses your input into the URL fragment (the part after{' '}
+            <span className="gs-page-kbd">#</span>) using lz-string. Fragments are not sent to servers by browsers —
+            but anyone you send the link to can see the content.
+          </p>
+        </section>
 
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">localStorage</h2>
-        <p>
-          Glow does not use localStorage to persist log content or settings between sessions. Your log content exists only in
-          the current browser tab.
-        </p>
-      </section>
-
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">Service worker</h2>
-        <p>
-          Glow uses a service worker for offline support. The service worker caches the application&apos;s static files
-          (JavaScript, CSS, icons) — it does not cache your log content.
-        </p>
-      </section>
-
-      <section className="mb-8 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-semibold">Contact</h2>
-        <p>
-          For questions about this privacy notice, see the{' '}
-          <a
-            className="text-cyan-600 underline dark:text-cyan-400"
-            href="https://github.com/chayprabs"
-            rel="noopener noreferrer"
-          >
-            maintainer on GitHub
-          </a>
-          .
-        </p>
-      </section>
-
-      <p className="text-xs text-neutral-500">Last updated: May 17, 2026</p>
-    </div>
+        <section className="gs-page-section">
+          <h2>Hosting</h2>
+          <p>
+            This site is served as static files. Standard server access logs may record your IP address and the URL path
+            you requested — but never the URL fragment, so log content is not visible to the host.
+          </p>
+        </section>
+      </div>
+    </GlowShell>
   )
 }

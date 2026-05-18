@@ -1,22 +1,25 @@
 import type { Metadata, Viewport } from 'next'
-import localFont from 'next/font/local'
+import { JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { AppErrorBoundary } from '@/components/ErrorBoundary'
 import { OfflineBanner } from '@/components/OfflineBanner'
 
-const geistSans = localFont({
-  src: './fonts/GeistVF.woff',
-  variable: '--font-geist-sans',
-  weight: '100 900',
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-plus-jakarta',
+  display: 'swap',
 })
-const geistMono = localFont({
-  src: './fonts/GeistMonoVF.woff',
-  variable: '--font-geist-mono',
-  weight: '100 900',
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
 })
 
 export const viewport: Viewport = {
-  themeColor: '#0a0a0a',
+  themeColor: '#4f46e5',
   colorScheme: 'dark light',
 }
 
@@ -37,8 +40,8 @@ export const metadata: Metadata = {
     'developer tools',
     'devops tools',
   ],
-  authors: [{ name: 'Chaitanya Prabuddha' }],
-  creator: 'Chaitanya Prabuddha',
+  authors: [{ name: 'Authos' }],
+  creator: 'Authos',
   applicationName: 'Glow',
   robots: 'index, follow',
   icons: {
@@ -47,19 +50,14 @@ export const metadata: Metadata = {
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
-    apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
-    other: [
-      { rel: 'mask-icon', url: '/favicon.svg', color: '#0d0d0d' },
-    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    other: [{ rel: 'mask-icon', url: '/favicon.svg', color: '#4f46e5' }],
   },
   manifest: '/site.webmanifest',
   openGraph: {
     type: 'website',
     title: 'Glow — Log syntax highlighter',
-    description:
-      'Paste raw logs for instant highlighting. Runs entirely in your browser.',
+    description: 'Paste raw logs for instant highlighting. Runs entirely in your browser.',
     siteName: 'Glow',
   },
   twitter: {
@@ -73,18 +71,15 @@ export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
-}>) {
+}>): JSX.Element {
   return (
-    <html lang="en">
+    <html lang="en" className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <head>
-        {/* Strict CSP breaks Next.js dev (webpack eval); response CSP matches in prod via next.config.mjs */}
         {process.env.NODE_ENV === 'production' ? (
           <meta httpEquiv="Content-Security-Policy" content={CSP} />
         ) : null}
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body style={{ height: '100%', margin: 0 }}>
         <AppErrorBoundary>
           {children}
           <OfflineBanner />

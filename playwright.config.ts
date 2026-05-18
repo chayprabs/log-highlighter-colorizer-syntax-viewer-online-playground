@@ -18,7 +18,8 @@ export default defineConfig({
     /** Dev server: reliable React hydration for client components (SW off per PRD). Production build is verified separately. */
     command: 'npm run dev',
     url: baseURL,
-    reuseExistingServer: process.env.CI !== 'true',
+    /** Always start a fresh dev server so tests hit the current build (avoids stale :3000). */
+    reuseExistingServer: false,
     timeout: 180_000,
   },
 })

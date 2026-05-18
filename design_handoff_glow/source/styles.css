@@ -1,21 +1,10 @@
-﻿@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-html, body { height: 100%; margin: 0; }
-
-.glow-shell {
-  --sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, 'Cascadia Mono', monospace;
-}
-
-/* Glow Redesign â€” clean web-app styling.
-   Plus Jakarta Sans for UI Â· JetBrains Mono for log content.
+/* Glow Redesign — clean web-app styling.
+   Plus Jakarta Sans for UI · JetBrains Mono for log content.
    Light is default; .glow-shell[data-theme="dark"] flips palette.
    The .glow-shell scope keeps styles isolated per artboard. */
 
 .glow-shell {
-  /* â”€â”€ Light palette (default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Light palette (default) ────────────────────────────────────────── */
   --bg:           #ffffff;
   --chrome:       #f7f8fb;        /* toolbar + footer + input panel */
   --hair:         #ececf2;
@@ -29,11 +18,11 @@ html, body { height: 100%; margin: 0; }
   --accent-soft:  color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-ring:  color-mix(in srgb, var(--accent) 32%, transparent);
 
-  /* Output panel sits "elevated" against the chrome â€” pure white frame */
+  /* Output panel sits "elevated" against the chrome — pure white frame */
   --output-bg:    #ffffff;
   --output-stripe:#4f46e5;        /* thin top accent on output panel */
 
-  /* Token colors â€” vivid, readable on white */
+  /* Token colors — vivid, readable on white */
   --t-timestamp: #2563eb;
   --t-error:     #dc2626;
   --t-fatal:     #b91c1c;
@@ -61,8 +50,8 @@ html, body { height: 100%; margin: 0; }
   --error-fg:    #b91c1c;
   --error-border:#fbcaca;
 
-  --sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, 'Cascadia Mono', monospace;
+  --sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, 'Cascadia Mono', monospace;
 
   --log-fs: 13px;
   --log-lh: 1.6;
@@ -95,7 +84,7 @@ html, body { height: 100%; margin: 0; }
   --accent-soft:  color-mix(in srgb, var(--accent) 14%, transparent);
   --accent-ring:  color-mix(in srgb, var(--accent) 32%, transparent);
 
-  --output-bg:    #1a1d28;        /* lighter than chrome â€” feels elevated */
+  --output-bg:    #1a1d28;        /* lighter than chrome — feels elevated */
   --output-stripe:#818cf8;
 
   --t-timestamp: #60a5fa;
@@ -130,7 +119,7 @@ html, body { height: 100%; margin: 0; }
 .glow-shell *::after { box-sizing: border-box; }
 .glow-shell button { font: inherit; color: inherit; }
 
-/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Toolbar ───────────────────────────────────────────────────────────── */
 .gs-toolbar {
   display: flex;
   align-items: center;
@@ -249,7 +238,7 @@ html, body { height: 100%; margin: 0; }
   box-shadow: none;
 }
 
-/* â”€â”€ Legend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Legend ────────────────────────────────────────────────────────────── */
 .gs-legend {
   background: var(--chrome);
   border-bottom: 1px solid var(--hair);
@@ -289,7 +278,7 @@ html, body { height: 100%; margin: 0; }
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
 }
 
-/* â”€â”€ Main panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Main panels ───────────────────────────────────────────────────────── */
 .gs-main {
   flex: 1;
   display: grid;
@@ -323,7 +312,7 @@ html, body { height: 100%; margin: 0; }
   background: var(--output-bg);
   position: relative;
 }
-/* thin accent stripe on output panel â€” the "result" side */
+/* thin accent stripe on output panel — the "result" side */
 .gs-panel-output::before {
   content: "";
   position: absolute;
@@ -412,7 +401,7 @@ html, body { height: 100%; margin: 0; }
   border-color: color-mix(in srgb, var(--t-info) 30%, transparent);
 }
 
-/* â”€â”€ Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Input ─────────────────────────────────────────────────────────────── */
 .gs-input-wrap {
   flex: 1;
   position: relative;
@@ -518,7 +507,7 @@ html, body { height: 100%; margin: 0; }
   border: 1px solid var(--error-border);
 }
 
-/* â”€â”€ Output viewport â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Output viewport ──────────────────────────────────────────────────── */
 .gs-out-viewport {
   flex: 1;
   min-height: 0;
@@ -564,7 +553,7 @@ html, body { height: 100%; margin: 0; }
   word-break: break-word;
 }
 
-/* â”€â”€ Output empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Output empty state ───────────────────────────────────────────────── */
 .gs-out-empty {
   position: absolute;
   inset: 0;
@@ -607,7 +596,7 @@ html, body { height: 100%; margin: 0; }
   font-size: 13px;
 }
 
-/* â”€â”€ Processing state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Processing state ─────────────────────────────────────────────────── */
 .gs-out-processing {
   position: absolute;
   inset: 0;
@@ -646,7 +635,7 @@ html, body { height: 100%; margin: 0; }
   font-variant-numeric: tabular-nums;
 }
 
-/* â”€â”€ Token colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Token colors ─────────────────────────────────────────────────────── */
 .gs-t-timestamp { color: var(--t-timestamp); }
 .gs-t-error     { color: var(--t-error);     font-weight: 600; }
 .gs-t-fatal     { color: var(--t-fatal);     font-weight: 700; }
@@ -666,7 +655,7 @@ html, body { height: 100%; margin: 0; }
 .gs-t-number    { color: var(--t-number); }
 .gs-t-boolean   { color: var(--t-boolean); font-weight: 600; }
 
-/* â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Footer ───────────────────────────────────────────────────────────── */
 .gs-footer {
   display: flex;
   align-items: center;
@@ -703,7 +692,7 @@ html, body { height: 100%; margin: 0; }
 .gs-foot-link:hover { color: var(--fg); }
 .gs-foot-meta-dot { color: var(--fg-faint); }
 
-/* â”€â”€ Mobile compaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Mobile compaction ────────────────────────────────────────────────── */
 .glow-shell.is-mobile .gs-toolbar {
   padding: 10px 16px;
   min-height: 52px;
@@ -724,7 +713,7 @@ html, body { height: 100%; margin: 0; }
 .glow-shell.is-mobile .gs-out-empty-title { font-size: 16px; }
 .glow-shell.is-mobile .gs-out-empty-sub { font-size: 13px; }
 
-/* â”€â”€ Scrollbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
 .gs-out-viewport::-webkit-scrollbar { width: 10px; height: 10px; }
 .gs-out-viewport::-webkit-scrollbar-track { background: transparent; }
 .gs-out-viewport::-webkit-scrollbar-thumb {
@@ -736,7 +725,7 @@ html, body { height: 100%; margin: 0; }
   background: color-mix(in srgb, var(--fg) 25%, transparent);
 }
 
-/* â”€â”€ Secondary pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Secondary pages ──────────────────────────────────────────────────── */
 .gs-page {
   flex: 1;
   min-height: 0;
@@ -845,4 +834,3 @@ html, body { height: 100%; margin: 0; }
   border-radius: 4px;
   border: 1px solid var(--hair-strong);
 }
-
