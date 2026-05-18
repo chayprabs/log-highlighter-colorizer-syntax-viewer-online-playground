@@ -8,8 +8,8 @@ import { KNOWN_TOKEN_IDS } from '@/lib/urlState'
 
 export const SYNC_LINE_THRESHOLD = 5_000
 export const CHUNK_LINE_SIZE = 1_000
-/** Max CPU wall time per line before falling back to escaped plain text (ReDoS guard). Keep above dev/CI JIT variance. */
-export const PER_LINE_TIMEOUT_MS = 500
+/** Max CPU wall time per line before falling back to escaped plain text (PRD §11.1 / §12). */
+export const PER_LINE_TIMEOUT_MS = 100
 export const QUOTED_STRING_MAX_INNER = 500
 export const KEY_MAX_LEN = 64
 

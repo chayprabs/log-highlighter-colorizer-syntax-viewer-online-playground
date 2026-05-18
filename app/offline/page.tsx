@@ -30,7 +30,7 @@ export default function OfflinePage() {
         You are offline
       </h1>
       <p style={{ fontSize: '13px', color: '#888', maxWidth: '360px', lineHeight: 1.6 }}>
-        Log Highlighter works offline once it has been loaded at least once.
+        Glow works offline once it has been loaded at least once.
         If you are seeing this page, try refreshing — the app may not have
         finished caching on your first visit.
       </p>
