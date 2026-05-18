@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { dropBinaryFile, dropTextFile } from './helpers'
 
 const nginxSample =
   '192.168.1.1 - - [15/Jan/2024:10:30:45 +0000] "GET /api/users HTTP/1.1" 200 1234'
@@ -79,6 +80,43 @@ test.describe('Glow PRD §18 smoke', () => {
     await page.locator('#glow-log-input').fill('clipboard-raw-test')
     await page.getByRole('button', { name: 'Copy' }).click()
     await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe('clipboard-raw-test')
+  })
+
+  test('load example populates input with sample log', async ({ page }) => {
+    await page.getByRole('button', { name: 'Load example' }).click()
+    await expect(page.locator('#glow-log-input')).not.toHaveValue('')
+    const viewer = page.getByRole('region', { name: 'Highlighted log output' })
+    await expect(viewer.locator('.token-level-error')).toHaveCount(3, { timeout: 15_000 })
+    await expect(viewer.locator('.token-uuid')).toBeAttached()
+  })
+
+  test('clear resets input and output', async ({ page }) => {
+    await page.locator('#glow-log-input').fill('to be cleared')
+    await page.getByRole('button', { name: 'Clear' }).click()
+    await expect(page.locator('#glow-log-input')).toHaveValue('')
+    await expect(page.getByText('Paste some log output to get started.')).toBeVisible()
+  })
+
+  test('text file drop loads and highlights', async ({ page }) => {
+    const payload = 'ERROR dropped-file-test\n192.168.0.1 GET /health 200'
+    await dropTextFile(page, '#glow-log-input', 'sample.log', payload)
+    await expect(page.locator('#glow-log-input')).toHaveValue(payload, { timeout: 15_000 })
+    const viewer = page.getByRole('region', { name: 'Highlighted log output' })
+    await expect(viewer.locator('.token-level-error')).toContainText('ERROR', { timeout: 15_000 })
+  })
+
+  test('binary file drop shows rejection message', async ({ page }) => {
+    await dropBinaryFile(page, '#glow-log-input', 'image.png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
+    await expect(page.getByText('This does not appear to be a text file.')).toBeVisible({ timeout: 15_000 })
+  })
+
+  test('offline banner appears and highlighting still works', async ({ page, context }) => {
+    await context.setOffline(true)
+    await expect(page.getByText(/You are offline/i)).toBeVisible({ timeout: 10_000 })
+    await page.locator('#glow-log-input').fill('ERROR offline-mode-test')
+    const viewer = page.getByRole('region', { name: 'Highlighted log output' })
+    await expect(viewer.locator('.token-level-error')).toContainText('ERROR', { timeout: 15_000 })
+    await context.setOffline(false)
   })
 
   test('legal routes load', async ({ page }) => {
