@@ -13,6 +13,7 @@ import {
   clearUrlHash,
   decodeUrlState,
   encodeUrlState,
+  URL_STATE_PARAM,
   type FontSizeId,
   type GlowUrlState,
   type ThemeId,
@@ -63,9 +64,11 @@ export default function Home(): JSX.Element {
   const [copyNotice, setCopyNotice] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [urlEncodeError, setUrlEncodeError] = useState<string | null>(null)
+  const [invalidShareLink, setInvalidShareLink] = useState(false)
 
   const urlTimerRef = useRef<number | null>(null)
   const urlHydratedRef = useRef(false)
+  const highlightGenRef = useRef(0)
 
   const sanitized = useMemo(() => sanitizeInput(input), [input])
   const lineCount = useMemo(() => {
@@ -79,7 +82,8 @@ export default function Home(): JSX.Element {
     if (typeof window === 'undefined') {
       return
     }
-    const decoded = decodeUrlState(window.location.hash)
+    const hash = window.location.hash
+    const decoded = decodeUrlState(hash)
     if (decoded.ok) {
       const s = decoded.state
       setInput(s.text)
@@ -89,23 +93,32 @@ export default function Home(): JSX.Element {
       setFontSize(s.fontSize)
       setEnabledTokens(new Set(s.enabledTokens))
       setLegendOpen(s.legendOpen)
+    } else if (hash.length > 1) {
+      const fragment = hash.startsWith('#') ? hash.slice(1) : hash
+      const params = new URLSearchParams(fragment)
+      if (params.get(URL_STATE_PARAM)) {
+        setInvalidShareLink(true)
+      }
     }
     urlHydratedRef.current = true
   }, [])
 
   useEffect(() => {
+    const gen = ++highlightGenRef.current
     const controller = new AbortController()
 
     const run = async (): Promise<void> => {
       if (sanitized.length === 0) {
-        setHtml('')
-        setIsHighlighting(false)
+        if (highlightGenRef.current === gen) {
+          setHtml('')
+          setIsHighlighting(false)
+        }
         return
       }
 
       const lines = sanitized.split('\n').length
       const needsChunk = lines > SYNC_LINE_THRESHOLD
-      if (needsChunk) {
+      if (needsChunk && highlightGenRef.current === gen) {
         setIsHighlighting(true)
       }
 
@@ -114,11 +127,14 @@ export default function Home(): JSX.Element {
           enabledTokens,
           signal: controller.signal,
         })
-        if (!controller.signal.aborted) {
-          setHtml(next)
+        if (highlightGenRef.current !== gen) {
+          return
         }
+        setHtml(next)
       } finally {
-        setIsHighlighting(false)
+        if (highlightGenRef.current === gen) {
+          setIsHighlighting(false)
+        }
       }
     }
 
@@ -194,7 +210,7 @@ export default function Home(): JSX.Element {
       : 'min-h-screen bg-neutral-50 text-neutral-900'
 
   return (
-    <div className={outerClass}>
+    <div data-shell-theme={theme} className={outerClass}>
       <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
         <header className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-cyan-500 dark:text-cyan-400">Glow</h1>
@@ -202,6 +218,25 @@ export default function Home(): JSX.Element {
             Browser-based log syntax highlighter — paste, inspect, share locally.
           </p>
         </header>
+
+        {invalidShareLink && (
+          <div
+            role="alert"
+            className="mb-4 flex flex-col gap-2 rounded-md border border-amber-700/50 bg-amber-950/40 px-3 py-2 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between dark:border-amber-600/40 dark:bg-amber-950/30"
+          >
+            <p className="text-amber-200 dark:text-amber-100">
+              This shared link could not be restored — it may be corrupted, truncated, or from an incompatible version.
+              You can still paste your log below.
+            </p>
+            <button
+              type="button"
+              onClick={() => setInvalidShareLink(false)}
+              className="shrink-0 self-start rounded border border-amber-600/60 px-2 py-1 text-xs font-medium text-amber-100 hover:bg-amber-900/50 sm:self-auto"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <p className="mb-4 rounded-md border border-emerald-800/40 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-200 dark:border-emerald-700/50 dark:bg-emerald-950/40">
           Nothing leaves your browser. Log content is processed locally. No data is sent to any server.
@@ -270,7 +305,10 @@ export default function Home(): JSX.Element {
               Privacy
             </a>
             <a className="underline hover:text-cyan-600 dark:hover:text-cyan-400" href="/terms">
-              Terms
+              Terms of service
+            </a>
+            <a className="underline hover:text-cyan-600 dark:hover:text-cyan-400" href="/terms#terms-of-use">
+              Terms of use
             </a>
             <a className="underline hover:text-cyan-600 dark:hover:text-cyan-400" href="/credits">
               Credits

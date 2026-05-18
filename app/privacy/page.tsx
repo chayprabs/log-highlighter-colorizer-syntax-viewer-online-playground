@@ -61,7 +61,17 @@ export default function PrivacyPage(): JSX.Element {
 
       <section className="mb-8 space-y-3 text-sm leading-relaxed">
         <h2 className="text-lg font-semibold">Contact</h2>
-        <p>For questions about this privacy notice, contact your operator or maintainer of this deployment.</p>
+        <p>
+          For questions about this privacy notice, see the{' '}
+          <a
+            className="text-cyan-600 underline dark:text-cyan-400"
+            href="https://github.com/chayprabs"
+            rel="noopener noreferrer"
+          >
+            maintainer on GitHub
+          </a>
+          .
+        </p>
       </section>
 
       <p className="text-xs text-neutral-500">Last updated: May 17, 2026</p>

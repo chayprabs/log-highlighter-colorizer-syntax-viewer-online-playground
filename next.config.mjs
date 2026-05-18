@@ -1,5 +1,8 @@
 import withPWA from 'next-pwa'
 
+/** Set STATIC_EXPORT=1 for Cloudflare Pages / GitHub Pages style hosts (PRD §16). Disables PWA SW build. */
+const staticExport = process.env.STATIC_EXPORT === '1'
+
 const cspHeader = [
   "default-src 'none'",
   "script-src 'self'",
@@ -16,7 +19,7 @@ const cspHeader = [
   'upgrade-insecure-requests',
 ].join('; ')
 
-const securityHeaders = [
+const securityHeadersWithoutCsp = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
@@ -26,11 +29,22 @@ const securityHeaders = [
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   },
-  { key: 'Content-Security-Policy', value: cspHeader },
 ]
+
+/** CSP omitted in development — Next.js/webpack rely on eval for dev tooling (Playwright uses dev server). */
+const securityHeaders =
+  process.env.NODE_ENV === 'production'
+    ? [...securityHeadersWithoutCsp, { key: 'Content-Security-Policy', value: cspHeader }]
+    : securityHeadersWithoutCsp
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(staticExport
+    ? {
+        output: 'export',
+        images: { unoptimized: true },
+      }
+    : {}),
   headers: async () => [
     {
       source: '/_next/static/:path*',
@@ -57,7 +71,7 @@ const nextConfig = {
 
 export default withPWA({
   dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
+  disable: process.env.NODE_ENV === 'development' || staticExport,
   register: true,
   skipWaiting: true,
   manifestTransforms: [

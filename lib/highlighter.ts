@@ -8,7 +8,8 @@ import { KNOWN_TOKEN_IDS } from '@/lib/urlState'
 
 export const SYNC_LINE_THRESHOLD = 5_000
 export const CHUNK_LINE_SIZE = 1_000
-export const PER_LINE_TIMEOUT_MS = 100
+/** Max CPU wall time per line before falling back to escaped plain text (ReDoS guard). Keep above dev/CI JIT variance. */
+export const PER_LINE_TIMEOUT_MS = 500
 export const QUOTED_STRING_MAX_INNER = 500
 export const KEY_MAX_LEN = 64
 
@@ -133,6 +134,36 @@ const SINGLE_QUOTE_RE = new RegExp(`'(?:[^'\\\\]|\\\\.){0,${QUOTED_STRING_MAX_IN
 const NUMBER_RE = /(?<![A-Za-z0-9_.])(?:0|[1-9]\d*)(?:\.\d+)?(?![A-Za-z0-9_.])/g
 
 const LITERAL_RE = /\b(?:true|false|null|undefined|nil)\b/gi
+
+/**
+ * Every regex used for sanitisation or token scanning (PRD §11.1 safe-regex audit).
+ */
+export const HIGHLIGHTER_AUDIT_REGEXES: readonly RegExp[] = [
+  ANSI_PATTERN,
+  CONTROL_CHARS_PATTERN,
+  ISO_DATETIME_RE,
+  ISO_DATE_ONLY_RE,
+  NGINX_DATETIME_RE,
+  SYSLOG_DATETIME_RE,
+  TIME_ONLY_RE,
+  EPOCH_RE,
+  LEVEL_ERROR_RE,
+  LEVEL_WARN_RE,
+  LEVEL_INFO_RE,
+  LEVEL_DEBUG_RE,
+  STATUS_RE,
+  HTTP_METHOD_RE,
+  URL_RE,
+  IPV4_RE,
+  UUID_RE,
+  PATH_RE,
+  KEY_VALUE_RE,
+  JSON_KEY_RE,
+  DOUBLE_QUOTE_RE,
+  SINGLE_QUOTE_RE,
+  NUMBER_RE,
+  LITERAL_RE,
+]
 
 function tokenEnabled(enabled: ReadonlySet<TokenId> | undefined, id: TokenId): boolean {
   return !enabled || enabled.has(id)
@@ -499,6 +530,16 @@ function delay(ms: number): Promise<void> {
   })
 }
 
+/** Yield between chunks — PRD §6.4 prefers idle callbacks when available. */
+function yieldBetweenChunks(): Promise<void> {
+  if (typeof requestIdleCallback !== 'undefined') {
+    return new Promise(resolve => {
+      requestIdleCallback(() => resolve(), { timeout: 50 })
+    })
+  }
+  return delay(0)
+}
+
 export interface HighlightAsyncOptions {
   enabledTokens?: ReadonlySet<TokenId>
   onProgress?: (processedLines: number, totalLines: number) => void
@@ -533,7 +574,7 @@ export async function highlightLogAsync(input: string, options?: HighlightAsyncO
     options?.onProgress?.(processed, lines.length)
 
     if (i + CHUNK_LINE_SIZE < lines.length) {
-      await delay(0)
+      await yieldBetweenChunks()
     }
   }
 

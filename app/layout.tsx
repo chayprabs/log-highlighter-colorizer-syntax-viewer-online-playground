@@ -77,7 +77,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta httpEquiv="Content-Security-Policy" content={CSP} />
+        {/* Strict CSP breaks Next.js dev (webpack eval); response CSP matches in prod via next.config.mjs */}
+        {process.env.NODE_ENV === 'production' ? (
+          <meta httpEquiv="Content-Security-Policy" content={CSP} />
+        ) : null}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

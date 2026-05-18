@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Terms — Glow',
-  description: 'Terms of service for the Glow log highlighter.',
+  description: 'Terms of service and terms of use for the Glow log highlighter.',
 }
 
 export default function TermsPage(): JSX.Element {
@@ -15,6 +15,14 @@ export default function TermsPage(): JSX.Element {
         </Link>
       </p>
       <h1 className="mb-6 text-3xl font-bold">Terms of service</h1>
+
+      <section id="terms-of-use" className="mb-8 space-y-3 text-sm leading-relaxed">
+        <h2 className="text-lg font-semibold">Terms of use</h2>
+        <p>
+          By using Glow you agree to these terms of use and the sections below. Glow is a client-side tool; you remain
+          responsible for how you use it and for any content you share via links.
+        </p>
+      </section>
 
       <section className="mb-8 space-y-3 text-sm leading-relaxed">
         <h2 className="text-lg font-semibold">Use at your own risk</h2>

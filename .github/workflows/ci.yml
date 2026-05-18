@@ -37,5 +37,14 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Next.js build
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Playwright E2E (PRD §17–18, dev server)
+        run: npm run test:e2e
+
+      - name: Next.js production build
         run: npm run build
+
+      - name: Static export smoke (PRD §16 Cloudflare path)
+        run: npm run build:static

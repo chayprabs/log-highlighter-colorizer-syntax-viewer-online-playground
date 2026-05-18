@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { copyToClipboard } from '@/lib/clipboard'
 
 type LogViewerProps = {
@@ -35,18 +35,35 @@ export function LogViewer({
   onCopyNotice,
 }: LogViewerProps): JSX.Element {
   const regionRef = useRef<HTMLDivElement>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (rawText.length === 0) {
+      setCopyError(null)
+    }
+  }, [rawText])
 
   const handleCopy = useCallback(async (): Promise<void> => {
     if (!rawText) {
       return
     }
+    setCopyError(null)
     const ok = await copyToClipboard(rawText)
     if (ok) {
       onCopyNotice(true)
       window.setTimeout(() => {
         onCopyNotice(false)
       }, 2000)
+      return
     }
+
+    const insecure =
+      typeof window !== 'undefined' && typeof window.isSecureContext === 'boolean' && !window.isSecureContext
+    setCopyError(
+      insecure
+        ? 'Could not copy: open Glow over HTTPS (localhost counts as secure), allow clipboard access in your browser, or select the text in Input and press Ctrl+C.'
+        : 'Could not copy: allow clipboard access for this site in your browser settings, or select the text in Input and press Ctrl+C.'
+    )
   }, [onCopyNotice, rawText])
 
   const handleDownload = useCallback((): void => {
@@ -107,6 +124,12 @@ export function LogViewer({
           </button>
         </div>
       </div>
+
+      {copyError && (
+        <p className="mb-2 text-xs text-amber-600 dark:text-amber-400" role="alert">
+          {copyError}
+        </p>
+      )}
 
       <div
         className={`flex min-h-[280px] min-w-0 flex-1 overflow-hidden rounded-lg border font-mono ${fontClass[fontSize]} ${surface}`}
