@@ -78,8 +78,10 @@ npm start
 | `npm test` | Vitest (unit) |
 | `npm run test:watch` | Vitest watch mode |
 | `npm run test:coverage` | Vitest with coverage |
+| `npm run test:e2e` | Playwright smoke (PRD §18) |
+| `npm run build:static` | Static export (`STATIC_EXPORT=1`, PRD §16) |
 
-CI (GitHub Actions): TypeScript, ESLint, production **license-checker** (no GPL/AGPL/LGPL), Vitest, Next build.
+CI (GitHub Actions): TypeScript, ESLint, production **license-checker** (no GPL/AGPL/LGPL), Vitest, Playwright E2E, Next.js build, static export smoke.
 
 ---
 

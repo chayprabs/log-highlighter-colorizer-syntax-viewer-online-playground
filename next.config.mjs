@@ -45,6 +45,8 @@ const nextConfig = {
         images: { unoptimized: true },
       }
     : {}),
+  /** Playwright / local dev hits 127.0.0.1 while Next serves on localhost (future Next.js requirement). */
+  allowedDevOrigins: ['127.0.0.1'],
   headers: async () => [
     {
       source: '/_next/static/:path*',
