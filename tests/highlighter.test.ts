@@ -39,6 +39,12 @@ describe('highlightLogSync', () => {
     const html = highlightLogSync('WARNING: x')
     expect(html).toContain('token-level-warn')
   })
+
+  it('marks bracketed ERROR and INFO levels', () => {
+    expect(highlightLogSync('[ERROR] boom')).toContain('token-level-error')
+    expect(highlightLogSync('INFO: started')).toContain('token-level-info')
+    expect(highlightLogSync('DEBUG trace')).toContain('token-level-debug')
+  })
 })
 
 describe('priority', () => {
@@ -101,27 +107,27 @@ describe('HTML escaping and XSS-safe output', () => {
 })
 
 describe('adversarial inputs (timing)', () => {
-  it('highlights 10k repeated letters within a reasonable budget', () => {
+  it('highlights 10k repeated letters within PRD §11.1 budget', () => {
     const line = 'a'.repeat(10_000)
     const t0 = performance.now()
     const out = highlightLine(line)
-    expect(performance.now() - t0).toBeLessThan(500)
+    expect(performance.now() - t0).toBeLessThan(100)
     expect(out.length).toBeGreaterThan(0)
     expect(out).not.toContain('<script')
   })
 
-  it('10k letters with few token matches completes quickly', () => {
+  it('10k letters with few token matches completes within PRD budget', () => {
     const line = 'z'.repeat(10_000)
     const t0 = performance.now()
     highlightLine(line)
-    expect(performance.now() - t0).toBeLessThan(500)
+    expect(performance.now() - t0).toBeLessThan(100)
   })
 
   it('handles long unterminated double-quote without hanging', () => {
     const line = `"${'b'.repeat(10_000)}`
     const t0 = performance.now()
     const out = highlightLine(line)
-    expect(performance.now() - t0).toBeLessThan(2000)
+    expect(performance.now() - t0).toBeLessThan(100)
     expect(out).toContain('&quot;')
   })
 
@@ -129,14 +135,14 @@ describe('adversarial inputs (timing)', () => {
     const line = '='.repeat(1000)
     const t0 = performance.now()
     highlightLine(line)
-    expect(performance.now() - t0).toBeLessThan(500)
+    expect(performance.now() - t0).toBeLessThan(100)
   })
 
   it('handles many slashes in one line without hanging', () => {
     const line = `/${'/'.repeat(999)}`
     const t0 = performance.now()
     highlightLine(line)
-    expect(performance.now() - t0).toBeLessThan(2000)
+    expect(performance.now() - t0).toBeLessThan(100)
   })
 
   it('closed quoted payload with 10k inner chars completes within PRD §18 budget', () => {

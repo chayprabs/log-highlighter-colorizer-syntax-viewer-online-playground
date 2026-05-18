@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    /** threads pool avoids fork worker timeouts on Windows paths with spaces (OneDrive). */
+    pool: 'threads',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
