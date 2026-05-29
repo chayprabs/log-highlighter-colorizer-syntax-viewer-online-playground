@@ -48,7 +48,6 @@ export function InputPanel({
       const size = new Blob([next]).size
       if (size > MAX_INPUT_BYTES) {
         onFootStateChange('too-large')
-        onChange('')
         return
       }
       updateFootState(size)
@@ -66,17 +65,15 @@ export function InputPanel({
 
       if (file.size > MAX_INPUT_BYTES) {
         onFootStateChange('too-large')
-        onChange('')
         return
       }
 
       const result = await readDroppedTextFile(file)
       if (!result.ok) {
-        if (result.reason === 'binary-file') {
-          onFootStateChange('binary-error')
-        } else if (result.reason === 'file-too-large') {
+        if (result.reason === 'file-too-large') {
           onFootStateChange('too-large')
-          onChange('')
+        } else {
+          onFootStateChange('binary-error')
         }
         return
       }
@@ -84,7 +81,6 @@ export function InputPanel({
       const size = new Blob([result.text]).size
       if (size > MAX_INPUT_BYTES) {
         onFootStateChange('too-large')
-        onChange('')
         return
       }
       updateFootState(size)
@@ -98,19 +94,19 @@ export function InputPanel({
 
   if (footState === 'too-large') {
     footMsg = (
-      <span className="gs-foot-msg is-error">
+      <span id="glow-input-foot-msg" className="gs-foot-msg is-error" role="alert">
         {Icon.ban} Input exceeds the 10&nbsp;MB limit.
       </span>
     )
   } else if (footState === 'binary-error') {
     footMsg = (
-      <span className="gs-foot-msg is-error">
+      <span id="glow-input-foot-msg" className="gs-foot-msg is-error" role="alert">
         {Icon.ban} This does not appear to be a text file.
       </span>
     )
   } else if (footState === 'large-warn') {
     footMsg = (
-      <span className="gs-foot-msg is-warn">
+      <span id="glow-input-foot-msg" className="gs-foot-msg is-warn" role="status">
         {Icon.alert} Large input — highlighting may take a moment.
       </span>
     )
@@ -162,6 +158,7 @@ export function InputPanel({
           placeholder="Paste your log output here, or drop a file…"
           spellCheck={false}
           aria-label="Log input"
+          aria-describedby={footMsg ? 'glow-input-foot-msg' : undefined}
         />
         {dragOver && (
           <div className="gs-drop" aria-hidden>

@@ -228,7 +228,7 @@ Exact regex patterns are in `source/tokenize.js` — copy that file's `patterns`
 ### `<Footer />`
 
 - Left: 12 px lock icon + `Nothing leaves your browser. Log content is processed locally. No data sent to any server.` (500, 12.5 px, `--fg-muted`).
-- Right: `© 2026 Authos · Privacy · Terms · Credits` — links use `--fg-muted` → `--fg` on hover.
+- Right: `© 2026 Chaitanya Prabuddha · Privacy · Terms` — links use `--fg-muted` → `--fg` on hover.
 
 ---
 

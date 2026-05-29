@@ -4,8 +4,8 @@
   "description": "Paste any log file and get instant syntax highlighting. Timestamps, IPs, UUIDs, HTTP methods, and more. Zero install.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0d0d",
-  "theme_color": "#0d0d0d",
+  "background_color": "#fafafa",
+  "theme_color": "#4f46e5",
   "orientation": "any",
   "categories": ["developer", "utilities", "productivity"],
   "icons": [

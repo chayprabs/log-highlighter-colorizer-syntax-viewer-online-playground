@@ -110,6 +110,13 @@ test.describe('Glow smoke', () => {
     await context.setOffline(false)
   })
 
+  test('share button copies link with state', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.locator('#glow-log-input').fill('ERROR share-test')
+    await page.getByRole('button', { name: 'Share link' }).click()
+    await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toContain('#state=')
+  })
+
   test('legal routes load', async ({ page }) => {
     await page.goto('/privacy', { waitUntil: 'load' })
     await expect(page.getByRole('heading', { level: 1, name: /Your logs stay on your machine/i })).toBeVisible()

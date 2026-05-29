@@ -24,7 +24,7 @@ const LEGEND: Array<[string, string]> = [
 
 export function Legend({ open }: LegendProps): JSX.Element {
   return (
-    <div className={`gs-legend${open ? ' is-open' : ''}`}>
+    <div id="glow-legend" className={`gs-legend${open ? ' is-open' : ''}`} aria-hidden={!open}>
       <div className="gs-legend-inner">
         {LEGEND.map(([type, label]) => (
           <div className="gs-legend-item" key={type}>

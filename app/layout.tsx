@@ -3,6 +3,7 @@ import { JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { AppErrorBoundary } from '@/components/ErrorBoundary'
 import { OfflineBanner } from '@/components/OfflineBanner'
+import { SITE } from '@/lib/site-config'
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -20,16 +21,16 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const viewport: Viewport = {
   themeColor: '#4f46e5',
-  colorScheme: 'dark light',
+  colorScheme: 'light dark',
 }
 
 const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE.siteUrl),
   title: 'Glow — Log syntax highlighter in your browser',
-  description:
-    'Paste any raw log output and get colour-coded, readable results. Timestamps, error levels, IPs, UUIDs, URLs, and more. Fully client-side — no install, no backend.',
+  description: SITE.description,
   keywords: [
     'glow',
     'log highlighter',
@@ -40,8 +41,8 @@ export const metadata: Metadata = {
     'developer tools',
     'devops tools',
   ],
-  authors: [{ name: 'Authos' }],
-  creator: 'Authos',
+  authors: [{ name: SITE.author, url: SITE.websiteUrl }],
+  creator: SITE.author,
   applicationName: 'Glow',
   robots: 'index, follow',
   icons: {
@@ -57,13 +58,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     title: 'Glow — Log syntax highlighter',
-    description: 'Paste raw logs for instant highlighting. Runs entirely in your browser.',
+    description: SITE.description,
     siteName: 'Glow',
+    url: SITE.siteUrl,
   },
   twitter: {
     card: 'summary',
     title: 'Glow',
     description: 'Browser-based log syntax highlighter. Paste and go.',
+    creator: '@chayprabs',
   },
 }
 

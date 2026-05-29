@@ -1,10 +1,11 @@
 'use client'
 
-import Link from 'next/link'
+import { useCallback, useState } from 'react'
 import { Icon } from '@/components/glow/Icons'
+import { copyToClipboard } from '@/lib/clipboard'
 import type { FontSizeId, ThemeId } from '@/lib/glow-utils'
 
-type ToolbarProps = {
+type ProductToolbarProps = {
   theme: ThemeId
   onThemeToggle: () => void
   lineNumbers: boolean
@@ -16,9 +17,10 @@ type ToolbarProps = {
   legendOpen: boolean
   onLegendToggle: () => void
   mobile: boolean
+  onShare: () => { ok: boolean; message: string }
 }
 
-export function Toolbar({
+export function ProductToolbar({
   theme,
   onThemeToggle,
   lineNumbers,
@@ -30,18 +32,28 @@ export function Toolbar({
   legendOpen,
   onLegendToggle,
   mobile,
-}: ToolbarProps): JSX.Element {
+  onShare,
+}: ProductToolbarProps): JSX.Element {
+  const [shareState, setShareState] = useState<'idle' | 'done' | 'error'>('idle')
+  const [shareMessage, setShareMessage] = useState('')
+
+  const handleShare = useCallback(async (): Promise<void> => {
+    const result = onShare()
+    if (!result.ok) {
+      setShareState('error')
+      setShareMessage(result.message)
+      window.setTimeout(() => setShareState('idle'), 3000)
+      return
+    }
+    const url = window.location.href
+    const copied = await copyToClipboard(url)
+    setShareState(copied ? 'done' : 'error')
+    setShareMessage(copied ? 'Link copied' : 'Copy failed — copy the URL from the address bar')
+    window.setTimeout(() => setShareState('idle'), 2500)
+  }, [onShare])
+
   return (
-    <header className="gs-toolbar">
-      <div className="gs-brand">
-        <Link href="/" className="gs-mark" aria-label="Glow home">
-          {Icon.glow}
-        </Link>
-        <Link href="/" className="gs-wordmark" style={{ textDecoration: 'none', color: 'inherit' }}>
-          Glow
-        </Link>
-        {!mobile && <span className="gs-tag">Log syntax highlighting in your browser</span>}
-      </div>
+    <div className="gs-product-toolbar">
       <div className="gs-tools">
         {!mobile && (
           <div className="gs-seg" role="group" aria-label="Font size">
@@ -94,12 +106,35 @@ export function Toolbar({
           className={`gs-icon-btn${legendOpen ? ' is-active' : ''}`}
           aria-label="Legend"
           aria-pressed={legendOpen}
+          aria-expanded={legendOpen}
+          aria-controls="glow-legend"
           onClick={onLegendToggle}
         >
           {Icon.list}
           {!mobile && <span className="gs-icon-btn-label">Legend</span>}
         </button>
+        <button
+          type="button"
+          className={`gs-icon-btn${shareState === 'done' ? ' is-active' : ''}`}
+          aria-label="Share link"
+          title="Copy shareable link"
+          onClick={() => {
+            void handleShare()
+          }}
+        >
+          {Icon.link}
+          {!mobile && (
+            <span className="gs-icon-btn-label">
+              {shareState === 'done' ? 'Copied' : shareState === 'error' ? 'Error' : 'Share'}
+            </span>
+          )}
+        </button>
       </div>
-    </header>
+      {shareState === 'error' && shareMessage ? (
+        <span className="gs-share-msg" role="status" aria-live="polite">
+          {shareMessage}
+        </span>
+      ) : null}
+    </div>
   )
 }

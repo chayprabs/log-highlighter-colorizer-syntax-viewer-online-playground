@@ -44,7 +44,7 @@ export interface GlowUrlState {
 
 export const DEFAULT_GLOW_STATE: GlowUrlState = {
   text: '',
-  theme: 'dark',
+  theme: 'light',
   lineNumbers: true,
   wordWrap: false,
   fontSize: 'medium',

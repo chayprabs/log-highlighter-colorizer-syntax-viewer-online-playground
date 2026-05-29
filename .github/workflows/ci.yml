@@ -46,5 +46,8 @@ jobs:
       - name: Next.js production build
         run: npm run build
 
+      - name: Clean build artifacts before static export
+        run: rm -rf .next out
+
       - name: Static export smoke (PRD §16 Cloudflare path)
         run: npm run build:static

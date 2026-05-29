@@ -28,7 +28,7 @@ export function OutputPanel({
   processingLines,
   processingProgress,
 }: OutputPanelProps): JSX.Element {
-  const [copyState, setCopyState] = useState<'idle' | 'done'>('idle')
+  const [copyState, setCopyState] = useState<'idle' | 'done' | 'error'>('idle')
 
   const handleCopy = useCallback(async (): Promise<void> => {
     if (!rawText) return
@@ -36,6 +36,9 @@ export function OutputPanel({
     if (ok) {
       setCopyState('done')
       window.setTimeout(() => setCopyState('idle'), 1400)
+    } else {
+      setCopyState('error')
+      window.setTimeout(() => setCopyState('idle'), 2500)
     }
   }, [rawText])
 
@@ -62,7 +65,7 @@ export function OutputPanel({
         <div>
           <div className="gs-out-empty-title">Highlighted output will appear here</div>
           <div className="gs-out-empty-sub">
-            Try pasting a log on the left, or drag a&nbsp;
+            Try pasting a log {mobile ? 'above' : 'on the left'}, or drag a&nbsp;
             <span style={{ fontFamily: 'var(--mono)', fontSize: '13px' }}>.log</span> /{' '}
             <span style={{ fontFamily: 'var(--mono)', fontSize: '13px' }}>.txt</span> file onto the input.
           </div>
@@ -84,7 +87,7 @@ export function OutputPanel({
     )
   } else {
     outputBody = (
-      <pre className="gs-out-pre">
+      <div className="gs-out-pre" role="log">
         {(lines ?? []).map((toks, i) => (
           <div className="gs-out-line" key={i}>
             {lineNumbers && <span className="gs-ln">{i + 1}</span>}
@@ -93,7 +96,7 @@ export function OutputPanel({
             </span>
           </div>
         ))}
-      </pre>
+      </div>
     )
   }
 
@@ -104,17 +107,17 @@ export function OutputPanel({
           <span className="gs-panel-title-dot" />
           Output
         </span>
-        {!isEmpty && !isProcessing && (
+        {!isEmpty && (
           <div className="gs-out-actions">
             <button
               type="button"
-              className={`gs-btn${copyState === 'done' ? ' gs-btn-success' : ''}`}
+              className={`gs-btn${copyState === 'done' ? ' gs-btn-success' : copyState === 'error' ? ' gs-btn-error' : ''}`}
               onClick={() => {
                 void handleCopy()
               }}
             >
               {copyState === 'done' ? Icon.check : Icon.copy}
-              <span>{copyState === 'done' ? 'Copied' : 'Copy'}</span>
+              <span>{copyState === 'done' ? 'Copied' : copyState === 'error' ? 'Failed' : 'Copy'}</span>
             </button>
             <button type="button" className="gs-btn" onClick={handleDownload}>
               {Icon.download}

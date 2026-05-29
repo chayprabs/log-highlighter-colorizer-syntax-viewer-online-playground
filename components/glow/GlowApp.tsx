@@ -1,17 +1,47 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Footer } from '@/components/glow/Footer'
 import { InputPanel, type InputFootState } from '@/components/glow/InputPanel'
 import { Legend } from '@/components/glow/Legend'
 import { OutputPanel } from '@/components/glow/OutputPanel'
-import { Toolbar } from '@/components/glow/Toolbar'
+import { ProductToolbar } from '@/components/glow/ProductToolbar'
+import { SeoBar } from '@/components/site/SeoBar'
+import { SiteShell } from '@/components/site/SiteShell'
 import { EXAMPLE_LOG } from '@/lib/example-log'
+import { glowFontToUrl, urlFontToGlow } from '@/lib/font-size-bridge'
 import type { FontSizeId, ThemeId } from '@/lib/glow-utils'
 import { initialTheme } from '@/lib/glow-utils'
 import { SYNC_LINE_THRESHOLD, tokenize, tokenizeAsync, type Token } from '@/lib/tokenize'
+import {
+  applyHashToUrl,
+  clearUrlHash,
+  decodeUrlState,
+  DEFAULT_GLOW_STATE,
+  encodeUrlState,
+  type GlowUrlState,
+} from '@/lib/urlState'
 
 const MOBILE_BREAKPOINT = 640
+const URL_SYNC_DEBOUNCE_MS = 300
+
+function buildUrlState(
+  input: string,
+  theme: ThemeId,
+  lineNumbers: boolean,
+  wrap: boolean,
+  fontSize: FontSizeId,
+  legendOpen: boolean
+): GlowUrlState {
+  return {
+    text: input,
+    theme,
+    lineNumbers,
+    wordWrap: wrap,
+    fontSize: glowFontToUrl(fontSize),
+    enabledTokens: [...DEFAULT_GLOW_STATE.enabledTokens],
+    legendOpen,
+  }
+}
 
 export function GlowApp(): JSX.Element {
   const [theme, setTheme] = useState<ThemeId>('light')
@@ -29,9 +59,21 @@ export function GlowApp(): JSX.Element {
   const [processingProgress, setProcessingProgress] = useState(0)
 
   const highlightGenRef = useRef(0)
+  const hydratedFromUrlRef = useRef(false)
 
   useEffect(() => {
     setTheme(initialTheme())
+    const result = decodeUrlState(window.location.hash)
+    if (result.ok) {
+      const { state } = result
+      setInput(state.text)
+      setTheme(state.theme)
+      setLineNumbers(state.lineNumbers)
+      setWrap(state.wordWrap)
+      setFontSize(urlFontToGlow(state.fontSize))
+      setLegendOpen(state.legendOpen)
+    }
+    hydratedFromUrlRef.current = true
   }, [])
 
   useEffect(() => {
@@ -109,6 +151,24 @@ export function GlowApp(): JSX.Element {
     }
   }, [input, isEmpty])
 
+  useEffect(() => {
+    if (!hydratedFromUrlRef.current) return
+
+    const timer = window.setTimeout(() => {
+      if (isEmpty) {
+        if (window.location.hash) clearUrlHash()
+        return
+      }
+
+      const encoded = encodeUrlState(buildUrlState(input, theme, lineNumbers, wrap, fontSize, legendOpen))
+      if (encoded.ok) {
+        applyHashToUrl(encoded.hash)
+      }
+    }, URL_SYNC_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [input, theme, lineNumbers, wrap, fontSize, legendOpen, isEmpty])
+
   const shellClass = useMemo(() => {
     const parts = ['glow-shell', `fs-${fontSize}`]
     if (lineNumbers) parts.push('has-gutter')
@@ -127,43 +187,59 @@ export function GlowApp(): JSX.Element {
     setInput(EXAMPLE_LOG)
   }, [])
 
+  const handleShare = useCallback((): { ok: boolean; message: string } => {
+    if (isEmpty) {
+      return { ok: false, message: 'Add log content before sharing.' }
+    }
+
+    const encoded = encodeUrlState(buildUrlState(input, theme, lineNumbers, wrap, fontSize, legendOpen))
+    if (!encoded.ok) {
+      return { ok: false, message: encoded.reason }
+    }
+
+    applyHashToUrl(encoded.hash)
+    return { ok: true, message: '' }
+  }, [input, theme, lineNumbers, wrap, fontSize, legendOpen, isEmpty])
+
   return (
-    <div className={shellClass} data-theme={theme}>
-      <Toolbar
-        theme={theme}
-        onThemeToggle={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
-        lineNumbers={lineNumbers}
-        onLineNumbersToggle={() => setLineNumbers(v => !v)}
-        wrap={wrap}
-        onWrapToggle={() => setWrap(v => !v)}
-        fontSize={fontSize}
-        onFontSizeChange={setFontSize}
-        legendOpen={legendOpen}
-        onLegendToggle={() => setLegendOpen(v => !v)}
-        mobile={mobile}
-      />
-      <Legend open={legendOpen} />
-      <main className="gs-main">
-        <InputPanel
-          value={input}
-          onChange={setInput}
-          onClear={handleClear}
-          onLoadExample={handleLoadExample}
-          footState={footState}
-          onFootStateChange={setFootState}
-        />
-        <OutputPanel
-          lines={lines}
-          rawText={input}
+    <SiteShell showSeoBar seoBar={<SeoBar />}>
+      <div className={shellClass} data-theme={theme}>
+        <ProductToolbar
+          theme={theme}
+          onThemeToggle={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
           lineNumbers={lineNumbers}
+          onLineNumbersToggle={() => setLineNumbers(v => !v)}
+          wrap={wrap}
+          onWrapToggle={() => setWrap(v => !v)}
+          fontSize={fontSize}
+          onFontSizeChange={setFontSize}
+          legendOpen={legendOpen}
+          onLegendToggle={() => setLegendOpen(v => !v)}
           mobile={mobile}
-          isEmpty={isEmpty}
-          isProcessing={isProcessing}
-          processingLines={processingLines}
-          processingProgress={processingProgress}
+          onShare={handleShare}
         />
-      </main>
-      <Footer mobile={mobile} />
-    </div>
+        <Legend open={legendOpen} />
+        <main className="gs-main">
+          <InputPanel
+            value={input}
+            onChange={setInput}
+            onClear={handleClear}
+            onLoadExample={handleLoadExample}
+            footState={footState}
+            onFootStateChange={setFootState}
+          />
+          <OutputPanel
+            lines={lines}
+            rawText={input}
+            lineNumbers={lineNumbers}
+            mobile={mobile}
+            isEmpty={isEmpty}
+            isProcessing={isProcessing}
+            processingLines={processingLines}
+            processingProgress={processingProgress}
+          />
+        </main>
+      </div>
+    </SiteShell>
   )
 }
