@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { forwardRef, useCallback, useState } from 'react'
 import { Icon } from '@/components/glow/Icons'
 import { fmtBytes, fmtInt, MAX_INPUT_BYTES, WARN_INPUT_BYTES } from '@/lib/glow-utils'
 import { readDroppedTextFile } from '@/lib/fileReader'
@@ -16,14 +16,10 @@ type InputPanelProps = {
   onFootStateChange: (state: InputFootState) => void
 }
 
-export function InputPanel({
-  value,
-  onChange,
-  onClear,
-  onLoadExample,
-  footState,
-  onFootStateChange,
-}: InputPanelProps): JSX.Element {
+export const InputPanel = forwardRef<HTMLTextAreaElement, InputPanelProps>(function InputPanel(
+  { value, onChange, onClear, onLoadExample, footState, onFootStateChange },
+  ref
+): JSX.Element {
   const [dragOver, setDragOver] = useState(false)
 
   const byteSize = new Blob([value]).size
@@ -42,6 +38,19 @@ export function InputPanel({
     [onFootStateChange]
   )
 
+  const applyText = useCallback(
+    (text: string) => {
+      const size = new Blob([text]).size
+      if (size > MAX_INPUT_BYTES) {
+        onFootStateChange('too-large')
+        return
+      }
+      updateFootState(size)
+      onChange(text)
+    },
+    [onChange, onFootStateChange, updateFootState]
+  )
+
   const handleChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       const next = event.target.value
@@ -56,18 +65,13 @@ export function InputPanel({
     [onChange, onFootStateChange, updateFootState]
   )
 
-  const handleDrop = useCallback(
-    async (event: React.DragEvent<HTMLDivElement>): Promise<void> => {
-      event.preventDefault()
-      setDragOver(false)
-      const file = event.dataTransfer.files[0]
+  const handleFile = useCallback(
+    async (file: File | undefined): Promise<void> => {
       if (!file) return
-
       if (file.size > MAX_INPUT_BYTES) {
         onFootStateChange('too-large')
         return
       }
-
       const result = await readDroppedTextFile(file)
       if (!result.ok) {
         if (result.reason === 'file-too-large') {
@@ -77,16 +81,18 @@ export function InputPanel({
         }
         return
       }
-
-      const size = new Blob([result.text]).size
-      if (size > MAX_INPUT_BYTES) {
-        onFootStateChange('too-large')
-        return
-      }
-      updateFootState(size)
-      onChange(result.text)
+      applyText(result.text)
     },
-    [onChange, onFootStateChange, updateFootState]
+    [applyText, onFootStateChange]
+  )
+
+  const handleDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>): Promise<void> => {
+      event.preventDefault()
+      setDragOver(false)
+      await handleFile(event.dataTransfer.files[0])
+    },
+    [handleFile]
   )
 
   let footMsg: JSX.Element | null = null
@@ -101,7 +107,7 @@ export function InputPanel({
   } else if (footState === 'binary-error') {
     footMsg = (
       <span id="glow-input-foot-msg" className="gs-foot-msg is-error" role="alert">
-        {Icon.ban} This does not appear to be a text file.
+        {Icon.ban} Could not read that file — plain text .log or .txt only.
       </span>
     )
   } else if (footState === 'large-warn') {
@@ -151,6 +157,7 @@ export function InputPanel({
         }}
       >
         <textarea
+          ref={ref}
           id="glow-log-input"
           className="gs-textarea"
           value={value}
@@ -159,6 +166,16 @@ export function InputPanel({
           spellCheck={false}
           aria-label="Log input"
           aria-describedby={footMsg ? 'glow-input-foot-msg' : undefined}
+        />
+        <input
+          id="glow-file-input"
+          type="file"
+          accept=".log,.txt,text/plain"
+          className="gs-file-input"
+          onChange={e => {
+            void handleFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
         />
         {dragOver && (
           <div className="gs-drop" aria-hidden>
@@ -172,6 +189,9 @@ export function InputPanel({
         {stats}
         {footMsg}
         <div className="gs-foot-actions">
+          <label htmlFor="glow-file-input" className="gs-btn gs-btn-ghost" style={{ cursor: 'pointer' }}>
+            Open file
+          </label>
           <button type="button" className="gs-btn gs-btn-ghost" onClick={onClear}>
             Clear
           </button>
@@ -182,4 +202,4 @@ export function InputPanel({
       </div>
     </section>
   )
-}
+})

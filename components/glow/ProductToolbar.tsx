@@ -16,6 +16,10 @@ type ProductToolbarProps = {
   onFontSizeChange: (size: FontSizeId) => void
   legendOpen: boolean
   onLegendToggle: () => void
+  filtersOpen: boolean
+  onFiltersToggle: () => void
+  searchQuery: string
+  onSearchChange: (query: string) => void
   mobile: boolean
   onShare: () => { ok: boolean; message: string }
 }
@@ -31,6 +35,10 @@ export function ProductToolbar({
   onFontSizeChange,
   legendOpen,
   onLegendToggle,
+  filtersOpen,
+  onFiltersToggle,
+  searchQuery,
+  onSearchChange,
   mobile,
   onShare,
 }: ProductToolbarProps): JSX.Element {
@@ -54,23 +62,32 @@ export function ProductToolbar({
 
   return (
     <div className="gs-product-toolbar">
+      <div className="gs-search-wrap">
+        {Icon.search}
+        <input
+          type="search"
+          className="gs-search-input"
+          placeholder={mobile ? 'Search logs…' : 'Search lines…'}
+          value={searchQuery}
+          onChange={e => onSearchChange(e.target.value)}
+          aria-label="Search log lines"
+        />
+      </div>
       <div className="gs-tools">
-        {!mobile && (
-          <div className="gs-seg" role="group" aria-label="Font size">
-            {(['S', 'M', 'L'] as const).map(s => (
-              <button
-                key={s}
-                type="button"
-                className={`gs-seg-btn${fontSize === s ? ' is-active' : ''}`}
-                onClick={() => onFontSizeChange(s)}
-                aria-pressed={fontSize === s}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-        {!mobile && <span className="gs-tool-sep" aria-hidden />}
+        <div className="gs-seg" role="group" aria-label="Font size">
+          {(['S', 'M', 'L'] as const).map(s => (
+            <button
+              key={s}
+              type="button"
+              className={`gs-seg-btn${fontSize === s ? ' is-active' : ''}`}
+              onClick={() => onFontSizeChange(s)}
+              aria-pressed={fontSize === s}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        <span className="gs-tool-sep" aria-hidden />
         <button
           type="button"
           className={`gs-icon-btn${lineNumbers ? ' is-active' : ''}`}
@@ -100,7 +117,19 @@ export function ProductToolbar({
         >
           {theme === 'dark' ? Icon.sun : Icon.moon}
         </button>
-        {!mobile && <span className="gs-tool-sep" aria-hidden />}
+        <span className="gs-tool-sep" aria-hidden />
+        <button
+          type="button"
+          className={`gs-icon-btn${filtersOpen ? ' is-active' : ''}`}
+          aria-label="Token filters"
+          aria-pressed={filtersOpen}
+          aria-expanded={filtersOpen}
+          aria-controls="glow-token-filters"
+          onClick={onFiltersToggle}
+        >
+          {Icon.filter}
+          {!mobile && <span className="gs-icon-btn-label">Filters</span>}
+        </button>
         <button
           type="button"
           className={`gs-icon-btn${legendOpen ? ' is-active' : ''}`}

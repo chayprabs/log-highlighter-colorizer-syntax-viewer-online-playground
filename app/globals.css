@@ -116,6 +116,10 @@ html, body { height: 100%; margin: 0; }
   --t-string:    #86efac;
   --t-number:    #fde68a;
   --t-boolean:   #d8b4fe;
+  --t-key:       #2dd4bf;
+  --t-value:     #94a3b8;
+  --t-json-key:  #c4b5fd;
+  --t-literal:   #d8b4fe;
 
   --warn-bg:     #2a230f;
   --warn-fg:     #fbbf24;
@@ -716,6 +720,9 @@ html, body { height: 100%; margin: 0; }
 .glow-shell.is-mobile .gs-panel-head { padding: 10px 14px; min-height: 42px; }
 .glow-shell.is-mobile .gs-panel-foot { padding: 8px 14px; min-height: 38px; }
 .glow-shell.is-mobile .gs-textarea { padding: 12px 14px; font-size: 12px; }
+.glow-shell.is-mobile .gs-out-line { padding-left: 14px; padding-right: 14px; }
+.glow-shell.is-mobile .gs-footer { padding: 10px 14px; font-size: 11.5px; }
+.glow-shell.is-mobile .gs-foot-meta { display: none; }
 .glow-shell.is-mobile { --log-fs: 11px; --log-lh: 1.55; }
 .glow-shell.is-mobile .gs-ln { width: 32px; padding-right: 10px; }
 .glow-shell.is-mobile .gs-out-empty-title { font-size: 16px; }
@@ -841,40 +848,5 @@ html, body { height: 100%; margin: 0; }
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid var(--hair-strong);
-}
-
-.gs-icon-btn:focus-visible,
-.gs-seg-btn:focus-visible,
-.gs-btn:focus-visible,
-.gs-textarea:focus-visible,
-.site-nav-link:focus-visible,
-.site-footer-link:focus-visible,
-.site-brand:focus-visible {
-  outline: 2px solid var(--accent, #4f46e5);
-  outline-offset: 2px;
-}
-
-.gs-btn-error {
-  color: var(--error-fg);
-  border-color: var(--error-border);
-}
-
-.gs-panel-foot {
-  flex-wrap: wrap;
-}
-
-.gs-legend.is-open {
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.glow-shell.is-mobile:not(.has-gutter) .gs-out-line {
-  padding-left: 14px;
-  padding-right: 14px;
-}
-
-.glow-shell.is-mobile.has-gutter .gs-out-line {
-  padding-left: 0;
-  padding-right: 14px;
 }
 

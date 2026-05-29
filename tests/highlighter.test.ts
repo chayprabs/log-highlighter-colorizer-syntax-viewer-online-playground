@@ -20,72 +20,72 @@ describe('highlightLogSync', () => {
   it('marks HTTP status and IP in nginx-style line', () => {
     const line = '192.168.1.1 - - [15/Jan/2024:10:30:45 +0000] "GET /api/users HTTP/1.1" 200 1234'
     const html = highlightLogSync(line)
-    expect(html).toContain('token-ip')
-    expect(html).toContain('token-status-2xx')
-    expect(html).toContain('token-http-method')
+    expect(html).toContain('gs-t-ip')
+    expect(html).toContain('gs-t-status-2xx')
+    expect(html).toContain('gs-t-method')
   })
 
   it('marks UUID distinctly', () => {
     const html = highlightLogSync('550e8400-e29b-41d4-a716-446655440000')
-    expect(html).toContain('token-uuid')
+    expect(html).toContain('gs-t-uuid')
   })
 
   it('marks ERROR in red class', () => {
     const html = highlightLogSync('ERROR something')
-    expect(html).toContain('token-level-error')
+    expect(html).toContain('gs-t-error')
   })
 
   it('marks WARN', () => {
     const html = highlightLogSync('WARNING: x')
-    expect(html).toContain('token-level-warn')
+    expect(html).toContain('gs-t-warn')
   })
 
   it('marks bracketed ERROR and INFO levels', () => {
-    expect(highlightLogSync('[ERROR] boom')).toContain('token-level-error')
-    expect(highlightLogSync('INFO: started')).toContain('token-level-info')
-    expect(highlightLogSync('DEBUG trace')).toContain('token-level-debug')
+    expect(highlightLogSync('[ERROR] boom')).toContain('gs-t-error')
+    expect(highlightLogSync('INFO: started')).toContain('gs-t-info')
+    expect(highlightLogSync('DEBUG trace')).toContain('gs-t-debug')
   })
 })
 
 describe('priority', () => {
   it('timestamp wins over epoch-looking substrings when full ISO present', () => {
     const html = highlightLogSync('2024-01-15T10:00:00Z')
-    expect(html).toContain('token-timestamp')
+    expect(html).toContain('gs-t-timestamp')
   })
 })
 
 describe('token type coverage', () => {
   it('HTTP status buckets', () => {
-    expect(highlightLogSync('x 502 y')).toContain('token-status-5xx')
-    expect(highlightLogSync('x 404 y')).toContain('token-status-4xx')
-    expect(highlightLogSync('x 302 y')).toContain('token-status-3xx')
+    expect(highlightLogSync('x 502 y')).toContain('gs-t-status-5xx')
+    expect(highlightLogSync('x 404 y')).toContain('gs-t-status-4xx')
+    expect(highlightLogSync('x 302 y')).toContain('gs-t-status-3xx')
   })
 
   it('URL token', () => {
-    expect(highlightLogSync('see https://example.com/path?q=1 ok')).toContain('token-url')
+    expect(highlightLogSync('see https://example.com/path?q=1 ok')).toContain('gs-t-url')
   })
 
   it('Unix path', () => {
-    expect(highlightLogSync('tail /var/log/sys.log')).toContain('token-path')
+    expect(highlightLogSync('tail /var/log/sys.log')).toContain('gs-t-path')
   })
 
   it('key=value pair', () => {
     const html = highlightLogSync('region=us-east-1')
-    expect(html).toContain('token-key')
-    expect(html).toContain('token-value')
+    expect(html).toContain('gs-t-key')
+    expect(html).toContain('gs-t-value')
   })
 
   it('JSON key on valid JSON line', () => {
-    expect(highlightLogSync('{"trace_id":"abc"}')).toContain('token-json-key')
+    expect(highlightLogSync('{"trace_id":"abc"}')).toContain('gs-t-json-key')
   })
 
   it('standalone number', () => {
-    expect(highlightLogSync('count 42 done')).toContain('token-number')
+    expect(highlightLogSync('count 42 done')).toContain('gs-t-number')
   })
 
   it('boolean and null literals', () => {
     const html = highlightLogSync('ok true false null nil undefined')
-    expect(html).toContain('token-literal')
+    expect(html).toContain('gs-t-literal')
   })
 })
 

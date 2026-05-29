@@ -40,23 +40,23 @@ describe('highlightLog security behavior', () => {
 describe('highlightLog token classes', () => {
   it('wraps ERROR in level-error span', () => {
     const out = highlightLogSync('ERROR boom')
-    expect(out).toContain('token-level-error')
+    expect(out).toContain('gs-t-error')
   })
 
-  it('wraps IPv4 in token-ip', () => {
+  it('wraps IPv4 in gs-t-ip', () => {
     const out = highlightLogSync('ping 192.168.0.1 done')
-    expect(out).toContain('token-ip')
+    expect(out).toContain('gs-t-ip')
   })
 
   it('escapes angle brackets in user text while still wrapping safe tokens', () => {
     const out = highlightLogSync('192.168.0.1 <x>')
     expect(out).toContain('&lt;x&gt;')
-    expect(out).toContain('token-ip')
+    expect(out).toContain('gs-t-ip')
   })
 
   it('prioritises timestamp over number when overlapping', () => {
     const out = highlightLogSync('2024-01-15T10:00:00Z')
-    expect(out).toContain('token-timestamp')
+    expect(out).toContain('gs-t-timestamp')
   })
 })
 

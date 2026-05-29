@@ -5,20 +5,28 @@ import { InputPanel, type InputFootState } from '@/components/glow/InputPanel'
 import { Legend } from '@/components/glow/Legend'
 import { OutputPanel } from '@/components/glow/OutputPanel'
 import { ProductToolbar } from '@/components/glow/ProductToolbar'
+import { TokenFilters } from '@/components/glow/TokenFilters'
 import { SeoBar } from '@/components/site/SeoBar'
 import { SiteShell } from '@/components/site/SiteShell'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { EXAMPLE_LOG } from '@/lib/example-log'
 import { glowFontToUrl, urlFontToGlow } from '@/lib/font-size-bridge'
 import type { FontSizeId, ThemeId } from '@/lib/glow-utils'
 import { initialTheme } from '@/lib/glow-utils'
-import { SYNC_LINE_THRESHOLD, tokenize, tokenizeAsync, type Token } from '@/lib/tokenize'
+import {
+  defaultEnabledTokenSet,
+  highlightLinesAsync,
+  highlightLinesSync,
+  SYNC_LINE_THRESHOLD,
+} from '@/lib/highlighter'
 import {
   applyHashToUrl,
   clearUrlHash,
   decodeUrlState,
-  DEFAULT_GLOW_STATE,
   encodeUrlState,
+  sanitizeEnabledTokens,
   type GlowUrlState,
+  type TokenId,
 } from '@/lib/urlState'
 
 const MOBILE_BREAKPOINT = 640
@@ -30,7 +38,8 @@ function buildUrlState(
   lineNumbers: boolean,
   wrap: boolean,
   fontSize: FontSizeId,
-  legendOpen: boolean
+  legendOpen: boolean,
+  enabledTokens: TokenId[]
 ): GlowUrlState {
   return {
     text: input,
@@ -38,7 +47,7 @@ function buildUrlState(
     lineNumbers,
     wordWrap: wrap,
     fontSize: glowFontToUrl(fontSize),
-    enabledTokens: [...DEFAULT_GLOW_STATE.enabledTokens],
+    enabledTokens,
     legendOpen,
   }
 }
@@ -49,17 +58,22 @@ export function GlowApp(): JSX.Element {
   const [wrap, setWrap] = useState(false)
   const [fontSize, setFontSize] = useState<FontSizeId>('M')
   const [legendOpen, setLegendOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [mobile, setMobile] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [input, setInput] = useState('')
   const [footState, setFootState] = useState<InputFootState>('normal')
-  const [lines, setLines] = useState<Token[][] | null>(null)
+  const [lineHtml, setLineHtml] = useState<string[] | null>(null)
+  const [rawLines, setRawLines] = useState<string[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingLines, setProcessingLines] = useState(0)
   const [processingProgress, setProcessingProgress] = useState(0)
+  const [enabledTokens, setEnabledTokens] = useState<Set<TokenId>>(() => defaultEnabledTokenSet())
 
   const highlightGenRef = useRef(0)
   const hydratedFromUrlRef = useRef(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     setTheme(initialTheme())
@@ -72,6 +86,7 @@ export function GlowApp(): JSX.Element {
       setWrap(state.wordWrap)
       setFontSize(urlFontToGlow(state.fontSize))
       setLegendOpen(state.legendOpen)
+      setEnabledTokens(new Set(sanitizeEnabledTokens(state.enabledTokens)))
     }
     hydratedFromUrlRef.current = true
   }, [])
@@ -85,6 +100,7 @@ export function GlowApp(): JSX.Element {
   }, [])
 
   const isEmpty = input.trim() === ''
+  const enabledSet = useMemo(() => enabledTokens, [enabledTokens])
 
   useEffect(() => {
     const gen = ++highlightGenRef.current
@@ -93,33 +109,37 @@ export function GlowApp(): JSX.Element {
     const run = async (): Promise<void> => {
       if (isEmpty) {
         if (highlightGenRef.current === gen) {
-          setLines(null)
+          setLineHtml(null)
+          setRawLines([])
           setIsProcessing(false)
         }
         return
       }
 
       const lineCount = input.split('\n').length
+      setRawLines(input.split('\n'))
+
       if (lineCount > SYNC_LINE_THRESHOLD) {
         if (highlightGenRef.current === gen) {
           setIsProcessing(true)
           setProcessingLines(lineCount)
           setProcessingProgress(0)
-          setLines(null)
+          setLineHtml([])
         }
 
         try {
-          const result = await tokenizeAsync(
-            input,
-            (done, total) => {
+          const result = await highlightLinesAsync(input, {
+            enabledTokens: enabledSet,
+            signal: controller.signal,
+            onProgress: (done, total, partial) => {
               if (highlightGenRef.current === gen) {
+                setLineHtml([...partial])
                 setProcessingProgress(done / total)
               }
             },
-            controller.signal
-          )
+          })
           if (highlightGenRef.current === gen) {
-            setLines(result)
+            setLineHtml(result)
             setProcessingProgress(1)
           }
         } finally {
@@ -130,9 +150,9 @@ export function GlowApp(): JSX.Element {
         return
       }
 
-      const result = tokenize(input)
+      const result = highlightLinesSync(input, enabledSet)
       if (highlightGenRef.current === gen) {
-        setLines(result)
+        setLineHtml(result)
         setIsProcessing(false)
       }
     }
@@ -149,7 +169,7 @@ export function GlowApp(): JSX.Element {
     return () => {
       controller.abort()
     }
-  }, [input, isEmpty])
+  }, [input, isEmpty, enabledSet])
 
   useEffect(() => {
     if (!hydratedFromUrlRef.current) return
@@ -160,14 +180,16 @@ export function GlowApp(): JSX.Element {
         return
       }
 
-      const encoded = encodeUrlState(buildUrlState(input, theme, lineNumbers, wrap, fontSize, legendOpen))
+      const encoded = encodeUrlState(
+        buildUrlState(input, theme, lineNumbers, wrap, fontSize, legendOpen, Array.from(enabledTokens))
+      )
       if (encoded.ok) {
         applyHashToUrl(encoded.hash)
       }
     }, URL_SYNC_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timer)
-  }, [input, theme, lineNumbers, wrap, fontSize, legendOpen, isEmpty])
+  }, [input, theme, lineNumbers, wrap, fontSize, legendOpen, enabledTokens, isEmpty])
 
   const shellClass = useMemo(() => {
     const parts = ['glow-shell', `fs-${fontSize}`]
@@ -180,6 +202,7 @@ export function GlowApp(): JSX.Element {
   const handleClear = useCallback((): void => {
     setInput('')
     setFootState('normal')
+    setSearchQuery('')
   }, [])
 
   const handleLoadExample = useCallback((): void => {
@@ -192,14 +215,46 @@ export function GlowApp(): JSX.Element {
       return { ok: false, message: 'Add log content before sharing.' }
     }
 
-    const encoded = encodeUrlState(buildUrlState(input, theme, lineNumbers, wrap, fontSize, legendOpen))
+    const encoded = encodeUrlState(
+      buildUrlState(input, theme, lineNumbers, wrap, fontSize, legendOpen, Array.from(enabledTokens))
+    )
     if (!encoded.ok) {
       return { ok: false, message: encoded.reason }
     }
 
     applyHashToUrl(encoded.hash)
     return { ok: true, message: '' }
-  }, [input, theme, lineNumbers, wrap, fontSize, legendOpen, isEmpty])
+  }, [input, theme, lineNumbers, wrap, fontSize, legendOpen, enabledTokens, isEmpty])
+
+  const handleToggleToken = useCallback((id: TokenId): void => {
+    setEnabledTokens(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next.size > 0 ? next : new Set([id])
+    })
+  }, [])
+
+  const handleEnableAllTokens = useCallback((): void => {
+    setEnabledTokens(defaultEnabledTokenSet())
+  }, [])
+
+  const handleDisableAllTokens = useCallback((): void => {
+    setEnabledTokens(new Set<TokenId>(['timestamp']))
+  }, [])
+
+  const focusInput = useCallback((): void => {
+    inputRef.current?.focus()
+  }, [])
+
+  useKeyboardShortcuts({
+    onFocusInput: focusInput,
+    onLoadExample: handleLoadExample,
+    onClear: handleClear,
+  })
 
   return (
     <SiteShell showSeoBar seoBar={<SeoBar />}>
@@ -215,12 +270,24 @@ export function GlowApp(): JSX.Element {
           onFontSizeChange={setFontSize}
           legendOpen={legendOpen}
           onLegendToggle={() => setLegendOpen(v => !v)}
+          filtersOpen={filtersOpen}
+          onFiltersToggle={() => setFiltersOpen(v => !v)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           mobile={mobile}
           onShare={handleShare}
+        />
+        <TokenFilters
+          open={filtersOpen}
+          enabled={enabledTokens}
+          onToggle={handleToggleToken}
+          onEnableAll={handleEnableAllTokens}
+          onDisableAll={handleDisableAllTokens}
         />
         <Legend open={legendOpen} />
         <main className="gs-main">
           <InputPanel
+            ref={inputRef}
             value={input}
             onChange={setInput}
             onClear={handleClear}
@@ -229,14 +296,16 @@ export function GlowApp(): JSX.Element {
             onFootStateChange={setFootState}
           />
           <OutputPanel
-            lines={lines}
-            rawText={input}
+            lineHtml={lineHtml}
+            rawLines={rawLines}
+            searchQuery={searchQuery}
             lineNumbers={lineNumbers}
             mobile={mobile}
             isEmpty={isEmpty}
             isProcessing={isProcessing}
             processingLines={processingLines}
             processingProgress={processingProgress}
+            rawText={input}
           />
         </main>
       </div>

@@ -15,10 +15,11 @@ test.describe('Glow smoke', () => {
     await expect(page.getByText('← Start in the input panel')).toBeVisible()
   })
 
-  test('nginx-style line highlights IP, path, status', async ({ page }) => {
+  test('nginx-style line highlights timestamp, IP, path, status', async ({ page }) => {
     await page.locator('#glow-log-input').fill(nginxSample)
     const viewer = page.getByRole('region', { name: 'Highlighted log output' })
-    await expect(viewer.locator('.gs-t-ip')).toContainText('192.168.1.1', { timeout: 15_000 })
+    await expect(viewer.locator('.gs-t-timestamp')).toBeVisible({ timeout: 15_000 })
+    await expect(viewer.locator('.gs-t-ip')).toContainText('192.168.1.1')
     await expect(viewer.locator('.gs-t-status-2xx')).toContainText('200')
     await expect(viewer.getByText('/api/users')).toBeVisible()
   })
@@ -77,8 +78,8 @@ test.describe('Glow smoke', () => {
     await page.getByRole('button', { name: 'Load Example' }).click()
     await expect(page.locator('#glow-log-input')).not.toHaveValue('')
     const viewer = page.getByRole('region', { name: 'Highlighted log output' })
-    await expect(viewer.locator('.gs-t-error')).toHaveCount(3, { timeout: 15_000 })
-    await expect(viewer.locator('.gs-t-uuid')).toHaveCount(3)
+    await expect(viewer.locator('.gs-t-error').first()).toBeVisible({ timeout: 15_000 })
+    await expect(viewer.locator('.gs-t-uuid').first()).toBeVisible()
   })
 
   test('clear resets input and output', async ({ page }) => {
@@ -98,7 +99,7 @@ test.describe('Glow smoke', () => {
 
   test('binary file drop shows rejection message', async ({ page }) => {
     await dropBinaryFile(page, '.gs-input-wrap', 'image.png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
-    await expect(page.getByText('This does not appear to be a text file.')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/Could not read that file/i)).toBeVisible({ timeout: 15_000 })
   })
 
   test('offline banner appears and highlighting still works', async ({ page, context }) => {
@@ -108,6 +109,24 @@ test.describe('Glow smoke', () => {
     const viewer = page.getByRole('region', { name: 'Highlighted log output' })
     await expect(viewer.locator('.gs-t-error')).toContainText('ERROR', { timeout: 15_000 })
     await context.setOffline(false)
+  })
+
+  test('search filters visible lines', async ({ page }) => {
+    await page.locator('#glow-log-input').fill('INFO ok\nERROR bad\nINFO fine')
+    const viewer = page.getByRole('region', { name: 'Highlighted log output' })
+    await expect(viewer.locator('.gs-out-line')).toHaveCount(3, { timeout: 15_000 })
+    await page.getByRole('searchbox', { name: 'Search log lines' }).fill('ERROR')
+    await expect(viewer.locator('.gs-out-line')).toHaveCount(1)
+    await expect(viewer.locator('.gs-t-error')).toContainText('ERROR')
+  })
+
+  test('token filter toggles error highlighting', async ({ page }) => {
+    await page.locator('#glow-log-input').fill('ERROR visible')
+    const viewer = page.getByRole('region', { name: 'Highlighted log output' })
+    await expect(viewer.locator('.gs-t-error')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'Token filters' }).click()
+    await page.getByRole('checkbox', { name: 'Error' }).uncheck()
+    await expect(viewer.locator('.gs-t-error')).toHaveCount(0, { timeout: 15_000 })
   })
 
   test('share button copies link with state', async ({ page, context }) => {

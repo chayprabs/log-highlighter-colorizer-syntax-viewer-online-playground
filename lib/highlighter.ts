@@ -5,6 +5,7 @@
 
 import type { TokenId } from '@/lib/urlState'
 import { KNOWN_TOKEN_IDS } from '@/lib/urlState'
+import { tokenIdToGlowClass } from '@/lib/glow-token-classes'
 
 export const SYNC_LINE_THRESHOLD = 5_000
 export const CHUNK_LINE_SIZE = 1_000
@@ -456,7 +457,7 @@ function applySpans(line: string, spans: Span[]): string {
     }
     if (span.start >= cursor) {
       const slice = line.slice(span.start, span.end)
-      parts.push(`<span class="token-${span.token}">${escapeHtml(slice)}</span>`)
+      parts.push(`<span class="${tokenIdToGlowClass(span.token)}">${escapeHtml(slice)}</span>`)
       cursor = Math.max(cursor, span.end)
     }
   }
@@ -522,6 +523,62 @@ export function highlightLogSync(input: string, enabledTokens?: ReadonlySet<Toke
   const sanitized = sanitizeInput(input)
   const lines = sanitized.split('\n')
   return lines.map(l => lineToHtmlDiv(l, enabledTokens)).join('')
+}
+
+
+/** Per-line safe HTML (inner content only) for React rendering. */
+export function highlightLinesSync(input: string, enabledTokens?: ReadonlySet<TokenId>): string[] {
+  if (!input) {
+    return []
+  }
+  const sanitized = sanitizeInput(input)
+  return sanitized.split('\n').map(line => (line.length === 0 ? '' : highlightLine(line, enabledTokens)))
+}
+
+export interface HighlightLinesAsyncOptions {
+  enabledTokens?: ReadonlySet<TokenId>
+  onProgress?: (processedLines: number, totalLines: number, partial: string[]) => void
+  signal?: AbortSignal
+}
+
+export async function highlightLinesAsync(
+  input: string,
+  options?: HighlightLinesAsyncOptions
+): Promise<string[]> {
+  if (!input) {
+    return []
+  }
+
+  const sanitized = sanitizeInput(input)
+  const lines = sanitized.split('\n')
+  const enabled = options?.enabledTokens
+  const result: string[] = []
+
+  if (lines.length <= SYNC_LINE_THRESHOLD) {
+    for (const line of lines) {
+      result.push(line.length === 0 ? '' : highlightLine(line, enabled))
+    }
+    options?.onProgress?.(lines.length, lines.length, result)
+    return result
+  }
+
+  for (let i = 0; i < lines.length; i += CHUNK_LINE_SIZE) {
+    if (options?.signal?.aborted) {
+      break
+    }
+
+    const batch = lines.slice(i, i + CHUNK_LINE_SIZE)
+    for (const line of batch) {
+      result.push(line.length === 0 ? '' : highlightLine(line, enabled))
+    }
+    options?.onProgress?.(result.length, lines.length, [...result])
+
+    if (i + CHUNK_LINE_SIZE < lines.length) {
+      await yieldBetweenChunks()
+    }
+  }
+
+  return result
 }
 
 function delay(ms: number): Promise<void> {

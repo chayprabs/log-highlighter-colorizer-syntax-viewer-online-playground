@@ -1,34 +1,53 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { OutputErrorBoundary } from '@/components/ErrorBoundary'
 import { Icon } from '@/components/glow/Icons'
-import { Tokens } from '@/components/glow/Tokens'
 import { copyToClipboard } from '@/lib/clipboard'
 import { fmtInt } from '@/lib/glow-utils'
-import type { Token } from '@/lib/tokenize'
+
+const OVERSCAN = 10
+const ROW_HEIGHTS = { S: 19, M: 21, L: 24 } as const
 
 type OutputPanelProps = {
-  lines: Token[][] | null
-  rawText: string
+  lineHtml: string[] | null
+  rawLines: string[]
+  searchQuery: string
   lineNumbers: boolean
   mobile: boolean
   isEmpty: boolean
   isProcessing: boolean
   processingLines: number
   processingProgress: number
+  rawText: string
 }
 
 export function OutputPanel({
-  lines,
-  rawText,
+  lineHtml,
+  rawLines,
+  searchQuery,
   lineNumbers,
   mobile,
   isEmpty,
   isProcessing,
   processingLines,
   processingProgress,
+  rawText,
 }: OutputPanelProps): JSX.Element {
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'error'>('idle')
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(480)
+
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const update = (): void => setViewportHeight(el.clientHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const handleCopy = useCallback(async (): Promise<void> => {
     if (!rawText) return
@@ -53,9 +72,30 @@ export function OutputPanel({
     URL.revokeObjectURL(url)
   }, [rawText])
 
-  const lineCount = lines?.length ?? 0
+  const rowHeight = ROW_HEIGHTS.M
+
+  const visibleIndices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) {
+      return rawLines.map((_, i) => i)
+    }
+    return rawLines.reduce<number[]>((acc, line, i) => {
+      if (line.toLowerCase().includes(q)) acc.push(i)
+      return acc
+    }, [])
+  }, [rawLines, searchQuery])
+
+  const lines = lineHtml ?? []
   const pct = Math.round(processingProgress * 100)
   const done = Math.round(processingLines * processingProgress)
+
+  const virtual = useMemo(() => {
+    const total = visibleIndices.length
+    const start = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN)
+    const count = Math.ceil(viewportHeight / rowHeight) + OVERSCAN * 2
+    const end = Math.min(total, start + count)
+    return { start, end, total, totalHeight: total * rowHeight, paddingTop: start * rowHeight }
+  }, [visibleIndices.length, scrollTop, viewportHeight, rowHeight])
 
   let outputBody: JSX.Element
   if (isEmpty) {
@@ -73,7 +113,7 @@ export function OutputPanel({
         <span className="gs-arrow">{mobile ? '↑ Add input above' : '← Start in the input panel'}</span>
       </div>
     )
-  } else if (isProcessing) {
+  } else if (isProcessing && lines.length === 0) {
     outputBody = (
       <div className="gs-out-processing">
         <div className="gs-processing-text">Highlighting {fmtInt(processingLines)} lines…</div>
@@ -86,19 +126,30 @@ export function OutputPanel({
       </div>
     )
   } else {
+    const slice = visibleIndices.slice(virtual.start, virtual.end)
     outputBody = (
-      <div className="gs-out-pre" role="log">
-        {(lines ?? []).map((toks, i) => (
-          <div className="gs-out-line" key={i}>
-            {lineNumbers && <span className="gs-ln">{i + 1}</span>}
-            <span className="gs-ln-content">
-              <Tokens tokens={toks} />
-            </span>
+      <div
+        className="gs-out-pre gs-out-virtual"
+        style={{ height: virtual.totalHeight, paddingTop: virtual.paddingTop }}
+        role="log"
+      >
+        {slice.map(rawIndex => (
+          <div className="gs-out-line" key={rawIndex} style={{ minHeight: rowHeight }}>
+            {lineNumbers && <span className="gs-ln">{rawIndex + 1}</span>}
+            <span
+              className="gs-ln-content"
+              dangerouslySetInnerHTML={{ __html: lines[rawIndex] ?? '' }}
+            />
           </div>
         ))}
+        {searchQuery.trim() && visibleIndices.length === 0 ? (
+          <div className="gs-out-search-empty">No lines match &quot;{searchQuery.trim()}&quot;</div>
+        ) : null}
       </div>
     )
   }
+
+  const lineCount = lines.length
 
   return (
     <section className="gs-panel gs-panel-output">
@@ -106,6 +157,11 @@ export function OutputPanel({
         <span className="gs-panel-title">
           <span className="gs-panel-title-dot" />
           Output
+          {searchQuery.trim() ? (
+            <span className="gs-panel-hint" style={{ marginLeft: 8 }}>
+              {fmtInt(visibleIndices.length)} / {fmtInt(rawLines.length)} lines
+            </span>
+          ) : null}
         </span>
         {!isEmpty && (
           <div className="gs-out-actions">
@@ -126,9 +182,22 @@ export function OutputPanel({
           </div>
         )}
       </div>
-      <div className="gs-out-viewport" role="region" aria-label="Highlighted log output">
-        {outputBody}
-      </div>
+      <OutputErrorBoundary>
+        <div
+          className="gs-out-viewport"
+          ref={viewportRef}
+          role="region"
+          aria-label="Highlighted log output"
+          onScroll={e => setScrollTop(e.currentTarget.scrollTop)}
+        >
+          {outputBody}
+          {isProcessing && lines.length > 0 ? (
+            <div className="gs-out-processing-bar" aria-live="polite">
+              Highlighting… {pct}%
+            </div>
+          ) : null}
+        </div>
+      </OutputErrorBoundary>
       <div className="gs-panel-foot">
         <div className="gs-stats">
           {isProcessing ? (
@@ -144,7 +213,7 @@ export function OutputPanel({
           )}
         </div>
         <div className="gs-stats" style={{ color: 'var(--fg-faint)' }}>
-          plain text
+          client-side highlight
         </div>
       </div>
     </section>
