@@ -10,10 +10,10 @@ type GlowShellProps = {
 }
 
 export function GlowShell({ children }: GlowShellProps): JSX.Element {
-  const [theme] = useState<ThemeId>('light')
+  const [theme, setTheme] = useState<ThemeId>('light')
 
   useEffect(() => {
-    initialTheme()
+    setTheme(initialTheme())
   }, [])
 
   return (

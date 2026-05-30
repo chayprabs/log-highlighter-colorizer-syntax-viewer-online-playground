@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OutputErrorBoundary } from '@/components/ErrorBoundary'
 import { Icon } from '@/components/glow/Icons'
 import { copyToClipboard } from '@/lib/clipboard'
-import { fmtInt } from '@/lib/glow-utils'
+import { fmtInt, type FontSizeId } from '@/lib/glow-utils'
 
 const OVERSCAN = 10
 const ROW_HEIGHTS = { S: 19, M: 21, L: 24 } as const
@@ -20,6 +20,8 @@ type OutputPanelProps = {
   processingLines: number
   processingProgress: number
   rawText: string
+  wrap: boolean
+  fontSize: FontSizeId
 }
 
 export function OutputPanel({
@@ -33,6 +35,8 @@ export function OutputPanel({
   processingLines,
   processingProgress,
   rawText,
+  wrap,
+  fontSize,
 }: OutputPanelProps): JSX.Element {
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'error'>('idle')
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -72,7 +76,7 @@ export function OutputPanel({
     URL.revokeObjectURL(url)
   }, [rawText])
 
-  const rowHeight = ROW_HEIGHTS.M
+  const rowHeight = ROW_HEIGHTS[fontSize]
 
   const visibleIndices = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -126,27 +130,47 @@ export function OutputPanel({
       </div>
     )
   } else {
-    const slice = visibleIndices.slice(virtual.start, virtual.end)
-    outputBody = (
-      <div
-        className="gs-out-pre gs-out-virtual"
-        style={{ height: virtual.totalHeight, paddingTop: virtual.paddingTop }}
-        role="log"
-      >
-        {slice.map(rawIndex => (
-          <div className="gs-out-line" key={rawIndex} style={{ minHeight: rowHeight }}>
-            {lineNumbers && <span className="gs-ln">{rawIndex + 1}</span>}
-            <span
-              className="gs-ln-content"
-              dangerouslySetInnerHTML={{ __html: lines[rawIndex] ?? '' }}
-            />
-          </div>
-        ))}
+    const virtualClass = `gs-out-pre gs-out-virtual${wrap ? ' gs-out-virtual--wrap' : ''}`
+    if (wrap) {
+      outputBody = (
+        <div className={virtualClass} role="log">
+          {visibleIndices.map(rawIndex => (
+            <div className="gs-out-line" key={rawIndex}>
+              {lineNumbers && <span className="gs-ln">{rawIndex + 1}</span>}
+              <span
+                className="gs-ln-content"
+                dangerouslySetInnerHTML={{ __html: lines[rawIndex] ?? '' }}
+              />
+            </div>
+          ))}
+          {searchQuery.trim() && visibleIndices.length === 0 ? (
+            <div className="gs-out-search-empty">No lines match &quot;{searchQuery.trim()}&quot;</div>
+          ) : null}
+        </div>
+      )
+    } else {
+      const slice = visibleIndices.slice(virtual.start, virtual.end)
+      outputBody = (
+        <div
+          className={virtualClass}
+          style={{ height: virtual.totalHeight, paddingTop: virtual.paddingTop }}
+          role="log"
+        >
+          {slice.map(rawIndex => (
+            <div className="gs-out-line" key={rawIndex} style={{ minHeight: rowHeight }}>
+              {lineNumbers && <span className="gs-ln">{rawIndex + 1}</span>}
+              <span
+                className="gs-ln-content"
+                dangerouslySetInnerHTML={{ __html: lines[rawIndex] ?? '' }}
+              />
+            </div>
+          ))}
         {searchQuery.trim() && visibleIndices.length === 0 ? (
           <div className="gs-out-search-empty">No lines match &quot;{searchQuery.trim()}&quot;</div>
         ) : null}
       </div>
-    )
+      )
+    }
   }
 
   const lineCount = lines.length

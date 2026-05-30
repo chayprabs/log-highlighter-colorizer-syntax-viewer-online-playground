@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
+import './site.css'
 import { AppErrorBoundary } from '@/components/ErrorBoundary'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { SITE } from '@/lib/site-config'

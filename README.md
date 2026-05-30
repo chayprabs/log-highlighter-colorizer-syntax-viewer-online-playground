@@ -2,7 +2,7 @@
 
 **Glow** (npm package `log-highlighter`) is a **browser-based log syntax highlighter** and **online log viewer**. Paste raw log output—application logs, **nginx** access lines, **syslog**, **JSON** lines, or one-off snippets—and get **instant colour-coded** output: **timestamps**, **log levels**, **HTTP methods and status codes**, **URLs**, **IPv4**, **UUIDs**, **paths**, **key–value pairs**, **quoted strings**, **numbers**, and **literals**. Everything runs **fully client-side** in JavaScript using **regex** patterns. **No WASM**, **no server**, **no accounts**, **no analytics**.
 
-Repository: **log-highlighter-colorizer-syntax-viewer-online-playground** · Suite: **Authos** ([authos.app](https://authos.app)) · Owner: **Chaitanya Prabuddha** ([@chayprabs](https://github.com/chayprabs))
+Repository: **log-highlighter-colorizer-syntax-viewer-online-playground** · Owner: **Chaitanya Prabuddha** ([@chayprabs](https://github.com/chayprabs))
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
@@ -112,7 +112,7 @@ tailwindcss
 open-source
 ```
 
-Optional extras to rotate in: `regex`, `lz-string`, `vercel`, `static-site`, `log-colorizer`, `browser-tools`, `mit-license`, `authos`.
+Optional extras to rotate in: `regex`, `lz-string`, `vercel`, `static-site`, `log-colorizer`, `browser-tools`, `mit-license`, `glow`.
 
 ---
 
@@ -163,6 +163,8 @@ Glow is for **quick visual inspection** in a browser tab—no repo, no plugin sy
 ---
 
 ## Security & headers
+
+See [SECURITY.md](./SECURITY.md) for the vulnerability reporting policy.
 
 Strict **Content-Security-Policy**, **`X-Frame-Options: DENY`**, **`X-Content-Type-Options: nosniff`**, **`Referrer-Policy`**, **`Permissions-Policy`**, **`Strict-Transport-Security`**, and **`X-XSS-Protection: 0`** are configured for deployment (see `vercel.json` and `next.config.mjs`). A CSP **meta** tag is also set from the root layout for consistency.
 

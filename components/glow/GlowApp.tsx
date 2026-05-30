@@ -61,6 +61,7 @@ export function GlowApp(): JSX.Element {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [mobile, setMobile] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [urlEncodeError, setUrlEncodeError] = useState<string | null>(null)
 
   const [input, setInput] = useState('')
   const [footState, setFootState] = useState<InputFootState>('normal')
@@ -177,6 +178,7 @@ export function GlowApp(): JSX.Element {
     const timer = window.setTimeout(() => {
       if (isEmpty) {
         if (window.location.hash) clearUrlHash()
+        setUrlEncodeError(null)
         return
       }
 
@@ -185,6 +187,9 @@ export function GlowApp(): JSX.Element {
       )
       if (encoded.ok) {
         applyHashToUrl(encoded.hash)
+        setUrlEncodeError(null)
+      } else {
+        setUrlEncodeError(encoded.reason)
       }
     }, URL_SYNC_DEBOUNCE_MS)
 
@@ -277,6 +282,11 @@ export function GlowApp(): JSX.Element {
           mobile={mobile}
           onShare={handleShare}
         />
+        {urlEncodeError ? (
+          <p className="gs-url-error" role="status">
+            {urlEncodeError}
+          </p>
+        ) : null}
         <TokenFilters
           open={filtersOpen}
           enabled={enabledTokens}
@@ -306,6 +316,8 @@ export function GlowApp(): JSX.Element {
             processingLines={processingLines}
             processingProgress={processingProgress}
             rawText={input}
+            wrap={wrap}
+            fontSize={fontSize}
           />
         </main>
       </div>

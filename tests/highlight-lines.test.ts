@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { highlightLine, highlightLinesSync } from '@/lib/highlighter'
+import { highlightLine, highlightLinesAsync, highlightLinesSync } from '@/lib/highlighter'
 
 describe('highlightLinesSync (production path)', () => {
   it('returns empty for empty input', () => {
@@ -24,5 +24,15 @@ describe('highlightLinesSync (production path)', () => {
     const html = highlightLine('ERROR warn', new Set<import('@/lib/urlState').TokenId>(['level-warn']))
     expect(html).not.toContain('gs-t-error')
     expect(html).toContain('gs-t-warn')
+  })
+})
+
+
+describe('highlightLinesAsync', () => {
+  it('highlights large input in chunks', async () => {
+    const input = Array.from({ length: 1200 }, (_, i) => `line ${i} ERROR fail`).join('\n')
+    const result = await highlightLinesAsync(input, { enabledTokens: new Set<import('@/lib/urlState').TokenId>(['level-error']) })
+    expect(result).toHaveLength(1200)
+    expect(result[0]).toContain('gs-t-error')
   })
 })
